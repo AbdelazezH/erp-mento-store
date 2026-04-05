@@ -10,7 +10,4 @@ services:
     environment:
       - NODE_ENV=production
     volumes:
-      - uploads_data:/app/public/uploads
-
-volumes:
-  uploads_data:
+      - /opt/nexus-uploads:/app/public/uploads
