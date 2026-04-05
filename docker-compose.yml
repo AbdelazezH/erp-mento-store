@@ -1,0 +1,13 @@
+version: "3.9"
+
+services:
+  app:
+    image: nexus-erp:latest
+    container_name: nexus-erp
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env.production
+    environment:
+      - NODE_ENV=production

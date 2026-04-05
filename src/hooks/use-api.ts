@@ -1,0 +1,383 @@
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+
+// ─── Generic fetch helpers ────────────────────────────────────────────────────
+
+async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(url, options);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "Request failed" }));
+    throw new Error(err.error ?? "Request failed");
+  }
+  return res.json();
+}
+
+function post<T>(url: string, data: unknown) {
+  return apiFetch<T>(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+}
+
+function put<T>(url: string, data: unknown) {
+  return apiFetch<T>(url, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+}
+
+function del(url: string) {
+  return apiFetch<{ ok: boolean }>(url, { method: "DELETE" });
+}
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+
+export function useDashboard() {
+  return useQuery({ queryKey: ["dashboard"], queryFn: () => apiFetch("/api/dashboard") });
+}
+
+// ─── Categories ───────────────────────────────────────────────────────────────
+
+export function useCategories() {
+  return useQuery({ queryKey: ["categories"], queryFn: () => apiFetch<any[]>("/api/categories") });
+}
+
+export function useCreateCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { name: string; description?: string }) => post("/api/categories", data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["categories"] }); toast.success("Category created"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useUpdateCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string; name?: string; description?: string }) =>
+      put(`/api/categories/${id}`, data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["categories"] }); toast.success("Category updated"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useDeleteCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => del(`/api/categories/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["categories"] }); toast.success("Category deleted"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+// ─── Suppliers ────────────────────────────────────────────────────────────────
+
+export function useSuppliers() {
+  return useQuery({ queryKey: ["suppliers"], queryFn: () => apiFetch<any[]>("/api/suppliers") });
+}
+
+export function useCreateSupplier() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: any) => post("/api/suppliers", data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["suppliers"] }); toast.success("Supplier created"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useUpdateSupplier() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string;[k: string]: any }) => put(`/api/suppliers/${id}`, data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["suppliers"] }); toast.success("Supplier updated"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useDeleteSupplier() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => del(`/api/suppliers/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["suppliers"] }); toast.success("Supplier deleted"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+// ─── Products ─────────────────────────────────────────────────────────────────
+
+export function useProducts(params?: { search?: string; categoryId?: string; supplierId?: string; lowStock?: boolean }) {
+  const sp = new URLSearchParams();
+  if (params?.search) sp.set("search", params.search);
+  if (params?.categoryId) sp.set("categoryId", params.categoryId);
+  if (params?.supplierId) sp.set("supplierId", params.supplierId);
+  if (params?.lowStock) sp.set("lowStock", "true");
+  const query = sp.toString();
+
+  return useQuery({
+    queryKey: ["products", params],
+    queryFn: () => apiFetch<any[]>(`/api/products${query ? `?${query}` : ""}`),
+  });
+}
+
+export function useProduct(id: string) {
+  return useQuery({
+    queryKey: ["products", id],
+    queryFn: () => apiFetch<any>(`/api/products/${id}`),
+    enabled: !!id,
+  });
+}
+
+export function useCreateProduct() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: any) => post("/api/products", data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); toast.success("Product created"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useUpdateProduct() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string;[k: string]: any }) => put(`/api/products/${id}`, data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); toast.success("Product updated"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useDeleteProduct() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => del(`/api/products/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); toast.success("Product deleted"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useMaterials() {
+  return useQuery({ queryKey: ["materials"], queryFn: () => apiFetch<string[]>("/api/products/materials") });
+}
+
+export function useSyncVariants() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ productId, variants }: { productId: string; variants: any[] }) =>
+      post(`/api/products/${productId}/variants`, variants),
+    onSuccess: (_data, { productId }) => {
+      qc.invalidateQueries({ queryKey: ["products", productId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useDeleteVariant() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => del(`/api/variants/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+// ─── Bills ────────────────────────────────────────────────────────────────────
+
+export function useBills(params?: { search?: string; status?: string; billType?: string }) {
+  const sp = new URLSearchParams();
+  if (params?.search) sp.set("search", params.search);
+  if (params?.status) sp.set("status", params.status);
+  if (params?.billType) sp.set("billType", params.billType);
+  const query = sp.toString();
+
+  return useQuery({
+    queryKey: ["bills", params],
+    queryFn: () => apiFetch<any[]>(`/api/bills${query ? `?${query}` : ""}`),
+  });
+}
+
+export function useBill(id: string) {
+  return useQuery({
+    queryKey: ["bills", id],
+    queryFn: () => apiFetch<any>(`/api/bills/${id}`),
+    enabled: !!id,
+  });
+}
+
+export function useCreateBill() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: any) => post("/api/bills", data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["bills"] }); qc.invalidateQueries({ queryKey: ["dashboard"] }); toast.success("Bill created"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useUpdateBill() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string;[k: string]: any }) => put(`/api/bills/${id}`, data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["bills"] }); qc.invalidateQueries({ queryKey: ["dashboard"] }); toast.success("Bill updated"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useDeleteBill() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => del(`/api/bills/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["bills"] }); qc.invalidateQueries({ queryKey: ["dashboard"] }); toast.success("Bill deleted"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+// ─── Customers ────────────────────────────────────────────────────────────────
+
+export function useCustomers(search?: string) {
+  return useQuery({
+    queryKey: ["customers", search],
+    queryFn: () => apiFetch<any[]>(`/api/customers${search ? `?search=${encodeURIComponent(search)}` : ""}`),
+  });
+}
+
+export function useCreateCustomer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: any) => post("/api/customers", data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["customers"] }); toast.success("Customer created"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useUpdateCustomer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string;[k: string]: any }) => put(`/api/customers/${id}`, data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["customers"] }); toast.success("Customer updated"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useDeleteCustomer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => del(`/api/customers/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["customers"] }); toast.success("Customer deleted"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+// ─── Orders ───────────────────────────────────────────────────────────────────
+
+export function useOrders(params?: { search?: string; status?: string }) {
+  const sp = new URLSearchParams();
+  if (params?.search) sp.set("search", params.search);
+  if (params?.status) sp.set("status", params.status);
+  const query = sp.toString();
+
+  return useQuery({
+    queryKey: ["orders", params],
+    queryFn: () => apiFetch<any[]>(`/api/orders${query ? `?${query}` : ""}`),
+  });
+}
+
+export function useOrder(id: string) {
+  return useQuery({
+    queryKey: ["orders", id],
+    queryFn: () => apiFetch<any>(`/api/orders/${id}`),
+    enabled: !!id,
+  });
+}
+
+export function useCreateOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: any) => post("/api/orders", data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["orders"] }); qc.invalidateQueries({ queryKey: ["dashboard"] }); toast.success("Order created"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useUpdateOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string;[k: string]: any }) => put(`/api/orders/${id}`, data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["orders"] }); qc.invalidateQueries({ queryKey: ["dashboard"] }); toast.success("Order updated"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useDeleteOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => del(`/api/orders/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["orders"] }); qc.invalidateQueries({ queryKey: ["dashboard"] }); toast.success("Order deleted"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+// ─── Attributes ───────────────────────────────────────────────────────────────
+
+export function useAttributes() {
+  return useQuery({ queryKey: ["attributes"], queryFn: () => apiFetch<any[]>("/api/attributes") });
+}
+
+export function useCreateAttribute() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: any) => post("/api/attributes", data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["attributes"] }); toast.success("Attribute created"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useUpdateAttribute() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string;[k: string]: any }) => put(`/api/attributes/${id}`, data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["attributes"] }); toast.success("Attribute updated"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useDeleteAttribute() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => del(`/api/attributes/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["attributes"] }); toast.success("Attribute deleted"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+// ─── Campaigns ────────────────────────────────────────────────────────────────
+
+export function useCampaigns() {
+  return useQuery({ queryKey: ["campaigns"], queryFn: () => apiFetch<any[]>("/api/campaigns") });
+}
+
+export function useCreateCampaign() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: any) => post("/api/campaigns", data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["campaigns"] }); toast.success("Campaign created"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useUpdateCampaign() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string;[k: string]: any }) => put(`/api/campaigns/${id}`, data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["campaigns"] }); toast.success("Campaign updated"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useDeleteCampaign() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => del(`/api/campaigns/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["campaigns"] }); toast.success("Campaign deleted"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
