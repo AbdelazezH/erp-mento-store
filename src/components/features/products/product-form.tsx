@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,6 +10,7 @@ import {
   useUpdateProduct,
   useCategories,
   useCreateCategory,
+  useUpdateCategory,
   useSuppliers,
   useCreateSupplier,
   useAttributes,
@@ -17,6 +18,7 @@ import {
   useAddAttributeValue,
   useSyncVariants,
   useMaterials,
+  useSaveGallery,
 } from "@/hooks/use-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,7 +43,7 @@ import {
 } from "@/components/ui/dialog";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { ImageUpload } from "./image-upload";
-import { Plus, X, ChevronDown } from "lucide-react";
+import { Plus, X, ChevronDown, Pencil, Download, Images } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -85,8 +87,8 @@ interface Attribute {
 }
 
 interface VariantDraft {
-  _key: string; // local unique key (not DB id)
-  id?: string;  // set when editing existing
+  _key: string;
+  id?: string;
   name: string;
   attributeName: string;
   attributeValue: string;
@@ -100,7 +102,26 @@ interface VariantDraft {
 interface AttributeRow {
   attribute: Attribute;
   selectedValues: AttributeValue[];
-  pendingValue: string; // typed but not yet added
+  pendingValue: string;
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function generateSku() {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  return "PRD-" + Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+}
+
+function generateBarcode() {
+  return Math.floor(1000000000000 + Math.random() * 9000000000000).toString();
+}
+
+function downloadImg(url: string) {
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = url.split("/").pop() ?? "image";
+  a.target = "_blank";
+  a.click();
 }
 
 // ─── Helper: generate cartesian product of selected values across attribute rows ─
@@ -162,6 +183,46 @@ function NewCategoryDialog({ open, onClose, onCreated }: { open: boolean; onClos
             }}
           >
             Create
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditCategoryDialog({
+  open,
+  onClose,
+  category,
+}: {
+  open: boolean;
+  onClose: () => void;
+  category: { id: string; name: string } | null;
+}) {
+  const [name, setName] = useState(category?.name ?? "");
+  const update = useUpdateCategory();
+
+  useEffect(() => { setName(category?.name ?? ""); }, [category]);
+
+  if (!category) return null;
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle>Edit Category</DialogTitle></DialogHeader>
+        <div className="space-y-3 py-2">
+          <Label>Name</Label>
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Category name" autoFocus />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button
+            disabled={!name.trim() || update.isPending}
+            onClick={async () => {
+              await update.mutateAsync({ id: category.id, name: name.trim() });
+              onClose();
+            }}
+          >
+            Save
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -257,7 +318,7 @@ function NewValueInline({
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAdd(); } }}
         placeholder="Type new value and press Enter…"
-        className="h-8 text-sm flex-1"
+        className="h-7 text-xs flex-1"
       />
       <Button
         type="button"
@@ -265,10 +326,61 @@ function NewValueInline({
         variant="outline"
         disabled={!input.trim() || addAttributeValue.isPending}
         onClick={handleAdd}
-        className="h-8 text-xs"
+        className="h-7 text-xs px-2"
       >
         Add
       </Button>
+    </div>
+  );
+}
+
+// ─── Gallery Upload Cell ──────────────────────────────────────────────────────
+
+function GalleryUploadCell({ onUpload }: { onUpload: (url: string) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  async function handleFile(file: File) {
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/uploads", { method: "POST", body: form });
+      if (!res.ok) throw new Error("Upload failed");
+      const { url } = await res.json();
+      onUpload(url);
+    } catch {
+      toast.error("Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div
+      className="aspect-square rounded-lg border-2 border-dashed flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors text-muted-foreground gap-1"
+      onClick={() => inputRef.current?.click()}
+    >
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          const files = Array.from(e.target.files ?? []);
+          files.forEach(handleFile);
+          e.target.value = "";
+        }}
+      />
+      {uploading ? (
+        <span className="text-xs">Uploading…</span>
+      ) : (
+        <>
+          <Plus className="h-6 w-6" />
+          <span className="text-xs">Add Image</span>
+        </>
+      )}
     </div>
   );
 }
@@ -280,12 +392,18 @@ function VariantCard({
   onChange,
   onRemove,
   productSku,
+  productSellingPrice,
 }: {
   variant: VariantDraft;
   onChange: (updated: Partial<VariantDraft>) => void;
   onRemove: () => void;
   productSku?: string | null;
+  productSellingPrice?: number | null;
 }) {
+  const priceHint = productSellingPrice != null
+    ? `Default: L.E ${productSellingPrice}`
+    : "Same as product";
+
   return (
     <div className="border rounded-lg p-4 space-y-3 relative">
       <button
@@ -300,6 +418,7 @@ function VariantCard({
         <ImageUpload
           value={variant.imageUrl || null}
           onUpload={(url) => onChange({ imageUrl: url })}
+          onRemove={() => onChange({ imageUrl: "" })}
           size="sm"
           className="shrink-0"
         />
@@ -347,9 +466,12 @@ function VariantCard({
             min="0"
             value={variant.sellingPrice}
             onChange={(e) => onChange({ sellingPrice: e.target.value })}
-            placeholder="—"
+            placeholder={priceHint}
             className="h-8 text-sm"
           />
+          {!variant.sellingPrice && productSellingPrice != null && (
+            <p className="text-xs text-muted-foreground">Uses product price: L.E {productSellingPrice}</p>
+          )}
         </div>
       </div>
     </div>
@@ -361,7 +483,7 @@ function VariantCard({
 export interface ProductFormProps {
   mode: "create" | "edit";
   productId?: string;
-  initialData?: any; // pre-fetched product from GET /api/products/[id]
+  initialData?: any;
   onSuccess?: (id: string) => void;
 }
 
@@ -370,6 +492,7 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
   const syncVariants = useSyncVariants();
+  const saveGallery = useSaveGallery();
   const addAttributeValue = useAddAttributeValue();
   const { data: categories = [] } = useCategories();
   const { data: suppliers = [] } = useSuppliers();
@@ -423,6 +546,7 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
   const isPublished = watch("isPublished");
   const description = watch("description");
   const imageUrl = watch("imageUrl");
+  const categoryId = watch("categoryId");
 
   // ── Derived pricing ──
   const expectedProfit =
@@ -444,11 +568,11 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
     }
   }, [basePrice, sellingPrice]);
 
-  // Auto-generate barcode on create
+  // Auto-generate SKU + barcode on create
   useEffect(() => {
     if (mode === "create") {
-      const barcode = Math.floor(1000000000000 + Math.random() * 9000000000000).toString();
-      setValue("barcode", barcode);
+      setValue("sku", generateSku());
+      setValue("barcode", generateBarcode());
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -462,10 +586,20 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
     }
   };
 
+  // ── Gallery state ──
+  const [galleryImages, setGalleryImages] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (initialData?.gallery?.length > 0) {
+      setGalleryImages(initialData.gallery.map((g: any) => g.imageUrl));
+    }
+  }, [initialData]);
+
   // ── Variants state ──
   const [attributeRows, setAttributeRows] = useState<AttributeRow[]>([]);
   const [variantDrafts, setVariantDrafts] = useState<VariantDraft[]>([]);
   const [showNewAttributeDialog, setShowNewAttributeDialog] = useState(false);
+  const [showAttrSelect, setShowAttrSelect] = useState(false);
 
   // Initialize variants from existing data
   useEffect(() => {
@@ -485,7 +619,6 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
       }));
       setVariantDrafts(drafts);
 
-      // Reconstruct attribute rows from variant data
       for (const v of initialData.variants) {
         if (!v.attributeName) continue;
         if (!draftMap.has(v.attributeName)) {
@@ -519,7 +652,6 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
   const removeAttributeRow = (idx: number) => {
     const removed = attributeRows[idx];
     setAttributeRows((prev) => prev.filter((_, i) => i !== idx));
-    // Remove variants associated with this attribute
     setVariantDrafts((prev) =>
       prev.filter((v) => v.attributeName !== removed.attribute.name)
     );
@@ -536,7 +668,6 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
       i === idx ? { ...r, selectedValues: [...r.selectedValues, value], pendingValue: "" } : r
     );
     setAttributeRows(newRows);
-    // Generate new variants
     regenerateVariants(newRows);
   };
 
@@ -569,7 +700,7 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
           attributeName: combo.attributeName,
           attributeValue: combo.attributeValue,
           sku: currentSku ? `${currentSku}-${combo.attributeValue}` : "",
-          barcode: "",
+          barcode: generateBarcode(),
           imageUrl: "",
           sellingPrice: initialData?.sellingPrice ?? "",
           stockQuantity: 0,
@@ -581,8 +712,10 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
 
   // ── Dialogs ──
   const [showNewCategory, setShowNewCategory] = useState(false);
+  const [showEditCategory, setShowEditCategory] = useState(false);
   const [showNewSupplier, setShowNewSupplier] = useState(false);
-  const [showAttrSelect, setShowAttrSelect] = useState(false);
+
+  const selectedCategory = (categories as any[]).find((c) => c.id === categoryId) ?? null;
 
   // ── Material combobox ──
   const [materialInput, setMaterialInput] = useState(initialData?.material ?? "");
@@ -632,8 +765,15 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
           })),
         });
       } else if (!data.hasVariants && savedId) {
-        // Clear variants if disabled
         await syncVariants.mutateAsync({ productId: savedId!, variants: [] });
+      }
+
+      // Save gallery
+      if (savedId) {
+        await saveGallery.mutateAsync({
+          productId: savedId,
+          images: galleryImages.map((url, i) => ({ imageUrl: url, sortOrder: i })),
+        });
       }
 
       onSuccess?.(savedId!);
@@ -643,7 +783,7 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
     }
   };
 
-  const isSaving = isSubmitting || createProduct.isPending || updateProduct.isPending || syncVariants.isPending;
+  const isSaving = isSubmitting || createProduct.isPending || updateProduct.isPending || syncVariants.isPending || saveGallery.isPending;
 
   return (
     <>
@@ -667,6 +807,15 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                   <span className="text-xs bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 leading-none">On</span>
                 ) : (
                   <span className="text-xs bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 leading-none">Off</span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger
+                value="gallery"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 pb-3 flex items-center gap-1.5"
+              >
+                Gallery
+                {galleryImages.length > 0 && (
+                  <span className="text-xs bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 leading-none">{galleryImages.length}</span>
                 )}
               </TabsTrigger>
               <TabsTrigger
@@ -742,16 +891,28 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
                         <Label>Category</Label>
-                        <button
-                          type="button"
-                          onClick={() => setShowNewCategory(true)}
-                          className="text-xs text-primary hover:underline"
-                        >
-                          + New
-                        </button>
+                        <div className="flex items-center gap-2">
+                          {selectedCategory && (
+                            <button
+                              type="button"
+                              onClick={() => setShowEditCategory(true)}
+                              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-0.5"
+                              title="Edit category"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setShowNewCategory(true)}
+                            className="text-xs text-primary hover:underline"
+                          >
+                            + New
+                          </button>
+                        </div>
                       </div>
                       <Select
-                        value={watch("categoryId") ?? "__none__"}
+                        value={categoryId ?? "__none__"}
                         onValueChange={(v) => setValue("categoryId", v === "__none__" ? null : v)}
                       >
                         <SelectTrigger>
@@ -800,10 +961,10 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                       Product Code{" "}
                       <span className="text-xs font-normal text-muted-foreground">(Supplier Code / SKU)</span>
                     </Label>
-                    <Input id="sku" {...register("sku")} placeholder="WLS-28-5" />
+                    <Input id="sku" {...register("sku")} placeholder="PRD-A4X2TK" />
                   </div>
 
-                  {/* Barcode — hidden when variants are on (each variant has its own) */}
+                  {/* Barcode — hidden when variants are on */}
                   <div className={cn("space-y-1.5", hasVariants && "hidden")}>
                     <Label htmlFor="barcode">Barcode</Label>
                     <Input id="barcode" {...register("barcode")} placeholder="6244005906656" />
@@ -897,7 +1058,7 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                     </div>
                   </div>
 
-                  {/* SKU (for variants mode) + Stock */}
+                  {/* Stock */}
                   {!hasVariants && (
                     <div className="space-y-1.5">
                       <Label htmlFor="stockQuantity">Stock Quantity</Label>
@@ -988,6 +1149,7 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                   <ImageUpload
                     value={imageUrl}
                     onUpload={(url) => setValue("imageUrl", url)}
+                    onRemove={() => setValue("imageUrl", null)}
                     size="lg"
                     className="w-full h-48"
                   />
@@ -1021,52 +1183,41 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
             </div>
 
             {hasVariants && (
-              <div className="border rounded-xl p-5 space-y-4">
-                {/* Attribute rows */}
+              <div className="border rounded-xl p-5 space-y-3">
+                {/* Compact attribute rows — 2 rows each */}
                 {attributeRows.map((row, rowIdx) => {
-                  // Attributes available for this row's value selector
                   const attrValues = row.attribute.values;
                   const unselectedValues = attrValues.filter(
                     (v) => !row.selectedValues.some((sv) => sv.id === v.id)
                   );
 
                   return (
-                    <div key={row.attribute.id || rowIdx} className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium">{row.attribute.name}</p>
-                        <button
-                          type="button"
-                          onClick={() => removeAttributeRow(rowIdx)}
-                          className="text-muted-foreground hover:text-foreground"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
+                    <div key={row.attribute.id || rowIdx} className="border rounded-lg p-3 space-y-2">
+                      {/* Row 1: name + chips + dropdown + add + remove */}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-sm font-medium shrink-0 mr-1 text-muted-foreground">
+                          {row.attribute.name}:
+                        </span>
 
-                      {/* Selected value tags */}
-                      <div className="flex flex-wrap gap-1.5">
                         {row.selectedValues.map((val) => (
-                          <Badge key={val.id} variant="secondary" className="gap-1 pr-1">
+                          <Badge key={val.id} variant="secondary" className="gap-1 pr-1 h-6 text-xs">
                             {val.value}
                             <button
                               type="button"
                               onClick={() => removeValueFromRow(rowIdx, val.id)}
-                              className="hover:text-destructive"
+                              className="hover:text-destructive ml-0.5"
                             >
                               <X className="h-3 w-3" />
                             </button>
                           </Badge>
                         ))}
-                      </div>
 
-                      {/* Value selector */}
-                      <div className="flex gap-2">
                         <Select
                           value={row.pendingValue}
                           onValueChange={(v) => updateAttributeRow(rowIdx, { pendingValue: v })}
                         >
-                          <SelectTrigger className="flex-1">
-                            <SelectValue placeholder="Select a value…" />
+                          <SelectTrigger className="h-7 w-auto min-w-[110px] text-xs">
+                            <SelectValue placeholder="Select value…" />
                           </SelectTrigger>
                           <SelectContent>
                             {unselectedValues.map((v) => (
@@ -1077,26 +1228,33 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                             )}
                           </SelectContent>
                         </Select>
-                        <Button
+
+                        <button
                           type="button"
-                          size="icon"
-                          variant="outline"
                           disabled={!row.pendingValue}
+                          className="h-7 w-7 flex items-center justify-center rounded-md border disabled:opacity-40 hover:bg-accent transition-colors"
                           onClick={() => {
                             const val = attrValues.find((v) => v.id === row.pendingValue);
                             if (val) addValueToRow(rowIdx, val);
                           }}
                         >
-                          <Plus className="h-4 w-4" />
-                        </Button>
+                          <Plus className="h-3.5 w-3.5" />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => removeAttributeRow(rowIdx)}
+                          className="h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors ml-auto"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
                       </div>
 
-                      {/* Inline new value creation */}
+                      {/* Row 2: Inline new value creation */}
                       {row.attribute.id && (
                         <NewValueInline
                           attributeId={row.attribute.id}
                           onCreated={(newVal) => {
-                            // Add to attribute's local values and select it immediately
                             const updatedRows = attributeRows.map((r, i) =>
                               i === rowIdx
                                 ? { ...r, attribute: { ...r.attribute, values: [...r.attribute.values, newVal] }, selectedValues: [...r.selectedValues, newVal] }
@@ -1167,6 +1325,7 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                           key={variant._key}
                           variant={variant}
                           productSku={watch("sku")}
+                          productSellingPrice={sellingPrice}
                           onChange={(update) =>
                             setVariantDrafts((prev) =>
                               prev.map((v, i) => (i === idx ? { ...v, ...update } : v))
@@ -1184,6 +1343,54 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
             )}
           </TabsContent>
 
+          {/* ── Gallery Tab ── */}
+          <TabsContent value="gallery" className="mt-0 p-6">
+            <div className="space-y-4">
+              <div>
+                <h2 className="font-medium">Product Gallery</h2>
+                <p className="text-sm text-muted-foreground">
+                  Upload marketing images for this product. These are saved separately from the main product image.
+                </p>
+              </div>
+
+              {galleryImages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16 text-center gap-3">
+                  <Images className="h-10 w-10 text-muted-foreground/40" />
+                  <p className="text-sm text-muted-foreground">No gallery images yet</p>
+                  <GalleryUploadCell onUpload={(url) => setGalleryImages((g) => [...g, url])} />
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                  {galleryImages.map((url, idx) => (
+                    <div key={idx} className="group relative aspect-square rounded-lg border overflow-hidden">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={url} alt={`Gallery ${idx + 1}`} className="h-full w-full object-cover" />
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => downloadImg(url)}
+                          className="p-1.5 rounded-md bg-white/20 hover:bg-white/40 transition-colors"
+                          title="Download"
+                        >
+                          <Download className="h-4 w-4 text-white" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setGalleryImages((g) => g.filter((_, i) => i !== idx))}
+                          className="p-1.5 rounded-md bg-white/20 hover:bg-red-500/70 transition-colors"
+                          title="Remove"
+                        >
+                          <X className="h-4 w-4 text-white" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  <GalleryUploadCell onUpload={(url) => setGalleryImages((g) => [...g, url])} />
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
           {/* ── Cost History Tab ── */}
           <TabsContent value="costHistory" className="mt-0 p-6">
             <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16 text-center">
@@ -1192,7 +1399,7 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
           </TabsContent>
         </Tabs>
 
-        {/* Hidden submit button — triggered by parent page's Save button via form="product-form" */}
+        {/* Hidden submit button */}
         <button type="submit" id="product-form-submit" className="hidden" />
       </form>
 
@@ -1210,11 +1417,16 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
         </Button>
       </div>
 
-      {/* Quick-create dialogs */}
+      {/* Quick-create / edit dialogs */}
       <NewCategoryDialog
         open={showNewCategory}
         onClose={() => setShowNewCategory(false)}
         onCreated={(id) => setValue("categoryId", id)}
+      />
+      <EditCategoryDialog
+        open={showEditCategory}
+        onClose={() => setShowEditCategory(false)}
+        category={selectedCategory}
       />
       <NewSupplierDialog
         open={showNewSupplier}

@@ -161,6 +161,16 @@ export const productProperties = pgTable("product_properties", {
   sortOrder: integer("sort_order").notNull().default(0),
 });
 
+export const productImages = pgTable("product_images", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  productId: uuid("product_id")
+    .notNull()
+    .references(() => products.id, { onDelete: "cascade" }),
+  imageUrl: text("image_url").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // ─── Bills ────────────────────────────────────────────────────────────────────
 
 export const bills = pgTable("bills", {
@@ -314,6 +324,7 @@ export const productsRelations = relations(products, ({ one, many }) => ({
   }),
   variants: many(productVariants),
   properties: many(productProperties),
+  images: many(productImages),
   billLineItems: many(billLineItems),
   orderLineItems: many(orderLineItems),
   campaignProducts: many(campaignProducts),
@@ -410,3 +421,4 @@ export type Order = typeof orders.$inferSelect;
 export type OrderLineItem = typeof orderLineItems.$inferSelect;
 export type Campaign = typeof campaigns.$inferSelect;
 export type CampaignProduct = typeof campaignProducts.$inferSelect;
+export type ProductImage = typeof productImages.$inferSelect;

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { products, productVariants, productProperties, categories, suppliers } from "@/lib/db/schema";
+import { products, productVariants, productProperties, productImages, categories, suppliers } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { apiError, apiResponse } from "@/lib/utils";
 import { eq, asc } from "drizzle-orm";
@@ -77,7 +77,13 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
     .where(eq(productProperties.productId, id))
     .orderBy(asc(productProperties.sortOrder));
 
-  return apiResponse({ ...product, variants, properties });
+  const gallery = await db
+    .select()
+    .from(productImages)
+    .where(eq(productImages.productId, id))
+    .orderBy(asc(productImages.sortOrder));
+
+  return apiResponse({ ...product, variants, properties, gallery });
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

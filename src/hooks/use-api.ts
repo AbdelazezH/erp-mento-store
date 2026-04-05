@@ -181,6 +181,27 @@ export function useDeleteVariant() {
   });
 }
 
+export function useProductGallery(productId?: string) {
+  return useQuery({
+    queryKey: ["gallery", productId],
+    queryFn: () => apiFetch<any[]>(`/api/products/${productId}/gallery`),
+    enabled: !!productId,
+  });
+}
+
+export function useSaveGallery() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ productId, images }: { productId: string; images: { imageUrl: string; sortOrder: number }[] }) =>
+      put(`/api/products/${productId}/gallery`, images),
+    onSuccess: (_data, { productId }) => {
+      qc.invalidateQueries({ queryKey: ["gallery", productId] });
+      qc.invalidateQueries({ queryKey: ["products", productId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
 // ─── Bills ────────────────────────────────────────────────────────────────────
 
 export function useBills(params?: { search?: string; status?: string; billType?: string }) {
