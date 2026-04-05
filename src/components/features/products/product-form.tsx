@@ -14,6 +14,7 @@ import {
   useCreateSupplier,
   useAttributes,
   useCreateAttribute,
+  useAddAttributeValue,
   useSyncVariants,
   useMaterials,
 } from "@/hooks/use-api";
@@ -228,16 +229,62 @@ function NewAttributeDialog({ open, onClose, onCreated }: { open: boolean; onClo
   );
 }
 
+// ─── Inline new attribute value ───────────────────────────────────────────────
+
+function NewValueInline({
+  attributeId,
+  onCreated,
+  addAttributeValue,
+}: {
+  attributeId: string;
+  onCreated: (val: AttributeValue) => void;
+  addAttributeValue: ReturnType<typeof useAddAttributeValue>;
+}) {
+  const [input, setInput] = useState("");
+
+  const handleAdd = async () => {
+    const trimmed = input.trim();
+    if (!trimmed) return;
+    const result = await addAttributeValue.mutateAsync({ attributeId, value: trimmed });
+    onCreated({ id: result.id, value: result.value, colorHex: result.colorHex });
+    setInput("");
+  };
+
+  return (
+    <div className="flex gap-2 items-center">
+      <Input
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAdd(); } }}
+        placeholder="Type new value and press Enter…"
+        className="h-8 text-sm flex-1"
+      />
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        disabled={!input.trim() || addAttributeValue.isPending}
+        onClick={handleAdd}
+        className="h-8 text-xs"
+      >
+        Add
+      </Button>
+    </div>
+  );
+}
+
 // ─── Variant Card ─────────────────────────────────────────────────────────────
 
 function VariantCard({
   variant,
   onChange,
   onRemove,
+  productSku,
 }: {
   variant: VariantDraft;
   onChange: (updated: Partial<VariantDraft>) => void;
   onRemove: () => void;
+  productSku?: string | null;
 }) {
   return (
     <div className="border rounded-lg p-4 space-y-3 relative">
@@ -267,10 +314,13 @@ function VariantCard({
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label className="text-xs">SKU</Label>
+          {productSku && (
+            <p className="text-xs text-muted-foreground">Prefix: {productSku}-</p>
+          )}
           <Input
             value={variant.sku}
             onChange={(e) => onChange({ sku: e.target.value })}
-            placeholder="SKU-001"
+            placeholder={productSku ? `${productSku}-identifier` : "SKU-001"}
             className="h-8 text-sm"
           />
         </div>
@@ -324,6 +374,7 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
   const syncVariants = useSyncVariants();
+  const addAttributeValue = useAddAttributeValue();
   const { data: categories = [] } = useCategories();
   const { data: suppliers = [] } = useSuppliers();
   const { data: attributes = [] } = useAttributes();
@@ -396,6 +447,15 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
       setMarginInput(m);
     }
   }, [basePrice, sellingPrice]);
+
+  // Auto-generate barcode on create
+  useEffect(() => {
+    if (mode === "create") {
+      const barcode = Math.floor(1000000000000 + Math.random() * 9000000000000).toString();
+      setValue("barcode", barcode);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleMarginChange = (val: string) => {
     setMarginInput(val);
@@ -500,8 +560,8 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
 
   const regenerateVariants = useCallback((rows: AttributeRow[]) => {
     const combinations = generateVariants(rows);
+    const currentSku = watch("sku");
     setVariantDrafts((prev) => {
-      // Keep existing drafts that match, add new ones
       const updated: VariantDraft[] = combinations.map((combo) => {
         const existing = prev.find(
           (v) => v.attributeName === combo.attributeName && v.attributeValue === combo.attributeValue
@@ -512,7 +572,7 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
           name: combo.name,
           attributeName: combo.attributeName,
           attributeValue: combo.attributeValue,
-          sku: "",
+          sku: currentSku ? `${currentSku}-${combo.attributeValue}` : "",
           barcode: "",
           imageUrl: "",
           sellingPrice: initialData?.sellingPrice ?? "",
@@ -521,7 +581,7 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
       });
       return updated;
     });
-  }, [initialData]);
+  }, [initialData, watch]);
 
   // ── Dialogs ──
   const [showNewCategory, setShowNewCategory] = useState(false);
@@ -607,8 +667,10 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                 className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 pb-3 flex items-center gap-1.5"
               >
                 Variants
-                {hasVariants && (
-                  <span className="text-xs bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 leading-none">on</span>
+                {hasVariants ? (
+                  <span className="text-xs bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 leading-none">On</span>
+                ) : (
+                  <span className="text-xs bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 leading-none">Off</span>
                 )}
               </TabsTrigger>
               <TabsTrigger
@@ -736,19 +798,19 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                     </div>
                   </div>
 
-                  {/* SKU + Barcode (hidden when hasVariants) */}
-                  <div className={cn("grid grid-cols-2 gap-4", hasVariants && "hidden")}>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="sku">
-                        Product Code{" "}
-                        <span className="text-xs font-normal text-muted-foreground">(Supplier Code)</span>
-                      </Label>
-                      <Input id="sku" {...register("sku")} placeholder="WLS-28-5" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="barcode">Barcode</Label>
-                      <Input id="barcode" {...register("barcode")} placeholder="6244005906656" />
-                    </div>
+                  {/* SKU — always visible */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="sku">
+                      Product Code{" "}
+                      <span className="text-xs font-normal text-muted-foreground">(Supplier Code / SKU)</span>
+                    </Label>
+                    <Input id="sku" {...register("sku")} placeholder="WLS-28-5" />
+                  </div>
+
+                  {/* Barcode — hidden when variants are on (each variant has its own) */}
+                  <div className={cn("space-y-1.5", hasVariants && "hidden")}>
+                    <Label htmlFor="barcode">Barcode</Label>
+                    <Input id="barcode" {...register("barcode")} placeholder="6244005906656" />
                   </div>
                 </section>
 
@@ -1032,6 +1094,24 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                           <Plus className="h-4 w-4" />
                         </Button>
                       </div>
+
+                      {/* Inline new value creation */}
+                      {row.attribute.id && (
+                        <NewValueInline
+                          attributeId={row.attribute.id}
+                          onCreated={(newVal) => {
+                            // Add to attribute's local values and select it immediately
+                            const updatedRows = attributeRows.map((r, i) =>
+                              i === rowIdx
+                                ? { ...r, attribute: { ...r.attribute, values: [...r.attribute.values, newVal] }, selectedValues: [...r.selectedValues, newVal] }
+                                : r
+                            );
+                            setAttributeRows(updatedRows);
+                            regenerateVariants(updatedRows);
+                          }}
+                          addAttributeValue={addAttributeValue}
+                        />
+                      )}
                     </div>
                   );
                 })}
@@ -1090,6 +1170,7 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                         <VariantCard
                           key={variant._key}
                           variant={variant}
+                          productSku={watch("sku")}
                           onChange={(update) =>
                             setVariantDrafts((prev) =>
                               prev.map((v, i) => (i === idx ? { ...v, ...update } : v))

@@ -349,6 +349,19 @@ export function useDeleteAttribute() {
   });
 }
 
+export function useAddAttributeValue() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ attributeId, value }: { attributeId: string; value: string }) =>
+      post<{ id: string; value: string; colorHex: string | null; sortOrder: number }>(
+        `/api/attributes/${attributeId}/values`,
+        { value }
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["attributes"] }),
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
 // ─── Campaigns ────────────────────────────────────────────────────────────────
 
 export function useCampaigns() {

@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   app:
     image: nexus-erp:latest
@@ -11,3 +9,8 @@ services:
       - .env.production
     environment:
       - NODE_ENV=production
+    volumes:
+      - uploads_data:/app/public/uploads
+
+volumes:
+  uploads_data:

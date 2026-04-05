@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState } from "react";
-import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 interface ImageUploadProps {
@@ -61,12 +60,11 @@ export function ImageUpload({ value, onUpload, className, size = "md" }: ImageUp
       {uploading ? (
         <span className="text-xs text-muted-foreground">Uploading…</span>
       ) : value ? (
-        <Image
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
           src={value}
           alt="Product"
-          fill
-          className="object-cover"
-          sizes="(max-width: 768px) 100vw, 200px"
+          className="absolute inset-0 h-full w-full object-cover"
         />
       ) : (
         <div className="flex flex-col items-center gap-1 text-muted-foreground pointer-events-none">
