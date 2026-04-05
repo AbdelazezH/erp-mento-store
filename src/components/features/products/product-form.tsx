@@ -260,76 +260,184 @@ function NewSupplierDialog({ open, onClose, onCreated }: { open: boolean; onClos
   );
 }
 
-function NewAttributeDialog({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (attr: Attribute) => void }) {
-  const [name, setName] = useState("");
-  const create = useCreateAttribute();
-  return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader><DialogTitle>New Attribute</DialogTitle></DialogHeader>
-        <div className="space-y-3 py-2">
-          <Label>Name (e.g. Colors, Size, Material)</Label>
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Attribute name" autoFocus />
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button
-            disabled={!name.trim() || create.isPending}
-            onClick={async () => {
-              const res: any = await create.mutateAsync({ name: name.trim(), type: "text", values: [] });
-              onCreated({ id: res.id, name: res.name, type: res.type, values: [] });
-              setName("");
-              onClose();
-            }}
-          >
-            Create
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
+// ─── Attribute Row Card ───────────────────────────────────────────────────────
 
-// ─── Inline new attribute value ───────────────────────────────────────────────
-
-function NewValueInline({
-  attributeId,
-  onCreated,
+function AttributeRowCard({
+  row,
+  rowIdx,
+  onRemove,
+  onAddValue,
+  onRemoveValue,
+  onNewValueCreated,
   addAttributeValue,
 }: {
-  attributeId: string;
-  onCreated: (val: AttributeValue) => void;
+  row: AttributeRow;
+  rowIdx: number;
+  onRemove: () => void;
+  onAddValue: (val: AttributeValue) => void;
+  onRemoveValue: (valueId: string) => void;
+  onNewValueCreated: (rowIdx: number, val: AttributeValue) => void;
   addAttributeValue: ReturnType<typeof useAddAttributeValue>;
 }) {
-  const [input, setInput] = useState("");
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [isAddingNew, setIsAddingNew] = useState(false);
+  const [newValueInput, setNewValueInput] = useState("");
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const handleAdd = async () => {
-    const trimmed = input.trim();
-    if (!trimmed) return;
-    const result = await addAttributeValue.mutateAsync({ attributeId, value: trimmed });
-    onCreated({ id: result.id, value: result.value, colorHex: result.colorHex });
-    setInput("");
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const unselectedValues = row.attribute.values.filter(
+    (v) => !row.selectedValues.some((sv) => sv.id === v.id)
+  );
+
+  const handleAddNewValue = async () => {
+    const trimmed = newValueInput.trim();
+    if (!trimmed || !row.attribute.id) return;
+    const result = await addAttributeValue.mutateAsync({ attributeId: row.attribute.id, value: trimmed });
+    const newVal = { id: result.id, value: result.value, colorHex: result.colorHex };
+    onNewValueCreated(rowIdx, newVal);
+    setNewValueInput("");
+    setIsAddingNew(false);
   };
 
   return (
-    <div className="flex gap-2 items-center">
-      <Input
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAdd(); } }}
-        placeholder="Type new value and press Enter…"
-        className="h-7 text-xs flex-1"
-      />
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        disabled={!input.trim() || addAttributeValue.isPending}
-        onClick={handleAdd}
-        className="h-7 text-xs px-2"
-      >
-        Add
-      </Button>
+    <div className="border rounded-xl p-4 space-y-3 bg-background">
+      {/* Header: attribute name + remove */}
+      <div className="flex items-center justify-between">
+        <span className="font-medium text-sm">{row.attribute.name}</span>
+        <button
+          type="button"
+          onClick={onRemove}
+          className="text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      {/* Selected value chips */}
+      {row.selectedValues.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {row.selectedValues.map((val) => (
+            <Badge key={val.id} variant="secondary" className="gap-1 pr-1.5 h-6 text-xs font-normal">
+              {val.value}
+              <button
+                type="button"
+                onClick={() => onRemoveValue(val.id)}
+                className="hover:text-destructive ml-0.5"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          ))}
+        </div>
+      )}
+
+      {/* Value selector: dropdown OR new value input */}
+      <div className="relative" ref={dropdownRef}>
+        {isAddingNew ? (
+          <div className="flex gap-2">
+            <Input
+              value={newValueInput}
+              onChange={(e) => setNewValueInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") { e.preventDefault(); handleAddNewValue(); }
+                if (e.key === "Escape") { setIsAddingNew(false); setNewValueInput(""); }
+              }}
+              placeholder="Enter new value…"
+              className="h-9 flex-1 text-sm"
+              autoFocus
+            />
+            <Button
+              type="button"
+              size="icon"
+              disabled={!newValueInput.trim() || addAttributeValue.isPending}
+              onClick={handleAddNewValue}
+              className="h-9 w-9 shrink-0"
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 shrink-0"
+              onClick={() => { setIsAddingNew(false); setNewValueInput(""); }}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            {/* Custom dropdown trigger */}
+            <button
+              type="button"
+              className="flex-1 flex items-center justify-between h-9 rounded-lg border bg-background px-3 text-sm text-muted-foreground hover:bg-muted/30 transition-colors"
+              onClick={() => setShowDropdown((v) => !v)}
+            >
+              <span>Select a value…</span>
+              <ChevronDown className="h-4 w-4 shrink-0" />
+            </button>
+            {/* Blue + button */}
+            <Button
+              type="button"
+              size="icon"
+              className="h-9 w-9 shrink-0"
+              onClick={() => setShowDropdown((v) => !v)}
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+
+        {/* Custom dropdown list */}
+        {showDropdown && !isAddingNew && (
+          <div className="absolute z-20 top-full mt-1 w-full rounded-xl border bg-popover shadow-lg overflow-hidden">
+            <div className="max-h-52 overflow-y-auto">
+              {unselectedValues.length === 0 && (
+                <div className="px-4 py-3 text-sm text-muted-foreground">All values selected</div>
+              )}
+              {unselectedValues.map((v) => (
+                <button
+                  key={v.id}
+                  type="button"
+                  className="w-full text-left px-4 py-2.5 text-sm hover:bg-accent transition-colors"
+                  onClick={() => {
+                    onAddValue(v);
+                    setShowDropdown(false);
+                  }}
+                >
+                  {v.value}
+                </button>
+              ))}
+            </div>
+            {/* New value option */}
+            {row.attribute.id && (
+              <div className="border-t">
+                <button
+                  type="button"
+                  className="w-full text-left px-4 py-2.5 text-sm text-primary hover:bg-accent transition-colors flex items-center gap-1.5"
+                  onClick={() => {
+                    setShowDropdown(false);
+                    setIsAddingNew(true);
+                  }}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  New value…
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -596,10 +704,13 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
   }, [initialData]);
 
   // ── Variants state ──
+  const createAttribute = useCreateAttribute();
   const [attributeRows, setAttributeRows] = useState<AttributeRow[]>([]);
   const [variantDrafts, setVariantDrafts] = useState<VariantDraft[]>([]);
-  const [showNewAttributeDialog, setShowNewAttributeDialog] = useState(false);
-  const [showAttrSelect, setShowAttrSelect] = useState(false);
+  const [showAddAttrDropdown, setShowAddAttrDropdown] = useState(false);
+  const [isCreatingNewAttr, setIsCreatingNewAttr] = useState(false);
+  const [newAttrName, setNewAttrName] = useState("");
+  const addAttrRef = useRef<HTMLDivElement>(null);
 
   // Initialize variants from existing data
   useEffect(() => {
@@ -657,10 +768,6 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
     );
   };
 
-  const updateAttributeRow = (idx: number, update: Partial<AttributeRow>) => {
-    setAttributeRows((prev) => prev.map((r, i) => (i === idx ? { ...r, ...update } : r)));
-  };
-
   const addValueToRow = (idx: number, value: AttributeValue) => {
     const row = attributeRows[idx];
     if (row.selectedValues.some((v) => v.id === value.id)) return;
@@ -709,6 +816,27 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
       return updated;
     });
   }, [initialData, watch]);
+
+  const handleNewValueCreated = (rowIdx: number, newVal: AttributeValue) => {
+    const updatedRows = attributeRows.map((r, i) =>
+      i === rowIdx
+        ? { ...r, attribute: { ...r.attribute, values: [...r.attribute.values, newVal] }, selectedValues: [...r.selectedValues, newVal] }
+        : r
+    );
+    setAttributeRows(updatedRows);
+    regenerateVariants(updatedRows);
+  };
+
+  // Close add-attr dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (addAttrRef.current && !addAttrRef.current.contains(e.target as Node)) {
+        setShowAddAttrDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   // ── Dialogs ──
   const [showNewCategory, setShowNewCategory] = useState(false);
@@ -1184,131 +1312,105 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
 
             {hasVariants && (
               <div className="border rounded-xl p-5 space-y-3">
-                {/* Compact attribute rows — 2 rows each */}
-                {attributeRows.map((row, rowIdx) => {
-                  const attrValues = row.attribute.values;
-                  const unselectedValues = attrValues.filter(
-                    (v) => !row.selectedValues.some((sv) => sv.id === v.id)
-                  );
+                {/* Attribute row cards */}
+                {attributeRows.map((row, rowIdx) => (
+                  <AttributeRowCard
+                    key={row.attribute.id || rowIdx}
+                    row={row}
+                    rowIdx={rowIdx}
+                    onRemove={() => removeAttributeRow(rowIdx)}
+                    onAddValue={(val) => addValueToRow(rowIdx, val)}
+                    onRemoveValue={(valId) => removeValueFromRow(rowIdx, valId)}
+                    onNewValueCreated={handleNewValueCreated}
+                    addAttributeValue={addAttributeValue}
+                  />
+                ))}
 
-                  return (
-                    <div key={row.attribute.id || rowIdx} className="border rounded-lg p-3 space-y-2">
-                      {/* Row 1: name + chips + dropdown + add + remove */}
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-sm font-medium shrink-0 mr-1 text-muted-foreground">
-                          {row.attribute.name}:
-                        </span>
-
-                        {row.selectedValues.map((val) => (
-                          <Badge key={val.id} variant="secondary" className="gap-1 pr-1 h-6 text-xs">
-                            {val.value}
-                            <button
-                              type="button"
-                              onClick={() => removeValueFromRow(rowIdx, val.id)}
-                              className="hover:text-destructive ml-0.5"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </Badge>
-                        ))}
-
-                        <Select
-                          value={row.pendingValue}
-                          onValueChange={(v) => updateAttributeRow(rowIdx, { pendingValue: v })}
-                        >
-                          <SelectTrigger className="h-7 w-auto min-w-[110px] text-xs">
-                            <SelectValue placeholder="Select value…" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {unselectedValues.map((v) => (
-                              <SelectItem key={v.id} value={v.id}>{v.value}</SelectItem>
-                            ))}
-                            {unselectedValues.length === 0 && (
-                              <div className="px-3 py-2 text-sm text-muted-foreground">No more values</div>
-                            )}
-                          </SelectContent>
-                        </Select>
-
-                        <button
+                {/* Add attribute section */}
+                <div ref={addAttrRef}>
+                  {isCreatingNewAttr ? (
+                    <div className="border rounded-xl p-4 space-y-3">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">New Attribute</p>
+                      <Input
+                        value={newAttrName}
+                        onChange={(e) => setNewAttrName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Escape") { setIsCreatingNewAttr(false); setNewAttrName(""); }
+                        }}
+                        placeholder="e.g. Color, Size, Shape"
+                        autoFocus
+                        className="h-9"
+                      />
+                      <div className="flex items-center gap-2">
+                        <Button
                           type="button"
-                          disabled={!row.pendingValue}
-                          className="h-7 w-7 flex items-center justify-center rounded-md border disabled:opacity-40 hover:bg-accent transition-colors"
-                          onClick={() => {
-                            const val = attrValues.find((v) => v.id === row.pendingValue);
-                            if (val) addValueToRow(rowIdx, val);
+                          size="sm"
+                          disabled={!newAttrName.trim() || createAttribute.isPending}
+                          onClick={async () => {
+                            const res: any = await createAttribute.mutateAsync({ name: newAttrName.trim() });
+                            addAttributeRow(res);
+                            setIsCreatingNewAttr(false);
+                            setNewAttrName("");
                           }}
                         >
-                          <Plus className="h-3.5 w-3.5" />
-                        </button>
-
+                          Create
+                        </Button>
                         <button
                           type="button"
-                          onClick={() => removeAttributeRow(rowIdx)}
-                          className="h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors ml-auto"
+                          className="text-sm text-muted-foreground hover:text-foreground"
+                          onClick={() => { setIsCreatingNewAttr(false); setNewAttrName(""); }}
                         >
-                          <X className="h-4 w-4" />
+                          Cancel
                         </button>
                       </div>
-
-                      {/* Row 2: Inline new value creation */}
-                      {row.attribute.id && (
-                        <NewValueInline
-                          attributeId={row.attribute.id}
-                          onCreated={(newVal) => {
-                            const updatedRows = attributeRows.map((r, i) =>
-                              i === rowIdx
-                                ? { ...r, attribute: { ...r.attribute, values: [...r.attribute.values, newVal] }, selectedValues: [...r.selectedValues, newVal] }
-                                : r
-                            );
-                            setAttributeRows(updatedRows);
-                            regenerateVariants(updatedRows);
-                          }}
-                          addAttributeValue={addAttributeValue}
-                        />
-                      )}
                     </div>
-                  );
-                })}
-
-                {/* Add attribute */}
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setShowAttrSelect((v) => !v)}
-                    className="w-full border-2 border-dashed rounded-lg px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Add an attribute
-                    <ChevronDown className="h-3 w-3 ml-auto" />
-                  </button>
-                  {showAttrSelect && (
-                    <div className="absolute z-10 mt-1 w-full rounded-md border bg-popover shadow-md">
-                      {(attributes as Attribute[])
-                        .filter((a) => !attributeRows.some((r) => r.attribute.id === a.id))
-                        .map((attr) => (
-                          <button
-                            key={attr.id}
-                            type="button"
-                            className="w-full text-left px-3 py-2 text-sm hover:bg-accent"
-                            onClick={() => {
-                              addAttributeRow(attr);
-                              setShowAttrSelect(false);
-                            }}
-                          >
-                            {attr.name}
-                          </button>
-                        ))}
+                  ) : (
+                    <div className="relative">
                       <button
                         type="button"
-                        className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-accent border-t"
-                        onClick={() => {
-                          setShowAttrSelect(false);
-                          setShowNewAttributeDialog(true);
-                        }}
+                        onClick={() => setShowAddAttrDropdown((v) => !v)}
+                        className="w-full border-2 border-dashed rounded-lg px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors flex items-center justify-center gap-2"
                       >
-                        <Plus className="h-3 w-3 inline mr-1" />
-                        Create new attribute…
+                        <Plus className="h-4 w-4" />
+                        Add an attribute
+                        <ChevronDown className="h-3 w-3 ml-auto" />
                       </button>
+                      {showAddAttrDropdown && (
+                        <div className="absolute z-20 mt-1 w-full rounded-xl border bg-popover shadow-lg overflow-hidden">
+                          {(attributes as Attribute[])
+                            .filter((a) => !attributeRows.some((r) => r.attribute.id === a.id))
+                            .map((attr) => (
+                              <button
+                                key={attr.id}
+                                type="button"
+                                className="w-full text-left px-4 py-2.5 text-sm hover:bg-accent transition-colors flex items-center gap-2"
+                                onClick={() => {
+                                  addAttributeRow(attr);
+                                  setShowAddAttrDropdown(false);
+                                }}
+                              >
+                                <span className="text-muted-foreground">🏷</span>
+                                {attr.name}
+                              </button>
+                            ))}
+                          {(attributes as Attribute[]).filter((a) => !attributeRows.some((r) => r.attribute.id === a.id)).length === 0 && (
+                            <div className="px-4 py-3 text-sm text-muted-foreground">All attributes added</div>
+                          )}
+                          <div className="border-t">
+                            <button
+                              type="button"
+                              className="w-full text-left px-4 py-2.5 text-sm text-primary hover:bg-accent transition-colors flex items-center gap-1.5"
+                              onClick={() => {
+                                setShowAddAttrDropdown(false);
+                                setIsCreatingNewAttr(true);
+                              }}
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                              New Attribute
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1432,11 +1534,6 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
         open={showNewSupplier}
         onClose={() => setShowNewSupplier(false)}
         onCreated={(id) => setValue("supplierId", id)}
-      />
-      <NewAttributeDialog
-        open={showNewAttributeDialog}
-        onClose={() => setShowNewAttributeDialog(false)}
-        onCreated={(attr) => addAttributeRow(attr)}
       />
     </>
   );
