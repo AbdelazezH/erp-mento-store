@@ -7,6 +7,7 @@ import {
   useDeleteProduct,
   useCategories,
   useSuppliers,
+  useCreateCategory,
 } from "@/hooks/use-api";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
   Plus,
   Search,
   MoreHorizontal,
@@ -51,6 +60,8 @@ import {
   Trash2,
   Package,
   Filter,
+  Download,
+  Image as ImageIcon,
 } from "lucide-react";
 
 // ─── Stock Badge ─────────────────────────────────────────────────────────────
@@ -75,6 +86,103 @@ function StockBadge({ qty }: { qty: number }) {
   );
 }
 
+// ─── CSV + Image helpers ──────────────────────────────────────────────────────
+
+function downloadCSV(productList: any[]) {
+  const headers = [
+    "Name", "SKU", "Barcode", "Category", "Supplier",
+    "Stock", "Selling Price", "Avg Cost", "Status", "Image URL",
+  ];
+  const rows = productList.map((p) => [
+    p.name,
+    p.sku ?? "",
+    p.barcode ?? "",
+    p.categoryName ?? "",
+    p.supplierName ?? "",
+    p.stockQuantity,
+    p.sellingPrice ?? "",
+    p.averageCost ?? "",
+    p.isPublished ? "Published" : "Draft",
+    p.imageUrl ?? "",
+  ]);
+  const csv = [headers, ...rows]
+    .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))
+    .join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "products.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function downloadImage(imageUrl: string, productName: string) {
+  try {
+    const res = await fetch(imageUrl);
+    const blob = await res.blob();
+    const ext = blob.type.split("/")[1] || "jpg";
+    const safeName = productName.replace(/[^a-z0-9]/gi, "_").toLowerCase();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${safeName}.${ext}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch {
+    // If fetch fails (CORS), open in new tab so user can save manually
+    window.open(imageUrl, "_blank");
+  }
+}
+
+// ─── New Category Dialog ──────────────────────────────────────────────────────
+
+function NewCategoryDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const [name, setName] = useState("");
+  const createCategory = useCreateCategory();
+
+  const handleCreate = async () => {
+    if (!name.trim()) return;
+    await createCategory.mutateAsync({ name: name.trim() });
+    setName("");
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-xs">
+        <DialogHeader>
+          <DialogTitle>New Category</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-2 py-2">
+          <Label>Name</Label>
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Shirts"
+            onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+            autoFocus
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleCreate} disabled={!name.trim() || createCategory.isPending}>
+            Create
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function ProductsPage() {
@@ -84,6 +192,7 @@ export default function ProductsPage() {
   const [supplierId, setSupplierId] = useState("");
   const [lowStock, setLowStock] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [newCategoryOpen, setNewCategoryOpen] = useState(false);
 
   const { data: products = [], isLoading } = useProducts({
     search: search || undefined,
@@ -112,10 +221,20 @@ export default function ProductsPage() {
             Manage your product catalog
           </p>
         </div>
-        <Button onClick={() => router.push("/products/new")}>
-          <Plus className="mr-2 h-4 w-4" />
-          New Product
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => downloadCSV(products as any[])}
+            disabled={(products as any[]).length === 0}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
+          </Button>
+          <Button onClick={() => router.push("/products/new")}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Product
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -130,22 +249,33 @@ export default function ProductsPage() {
           />
         </div>
 
-        <Select
-          value={categoryId}
-          onValueChange={(v) => setCategoryId(v === "__all__" ? "" : v)}
-        >
-          <SelectTrigger className="w-44">
-            <SelectValue placeholder="All categories" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">All categories</SelectItem>
-            {(categories as any[]).map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-1">
+          <Select
+            value={categoryId}
+            onValueChange={(v) => setCategoryId(v === "__all__" ? "" : v)}
+          >
+            <SelectTrigger className="w-44">
+              <SelectValue placeholder="All categories" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All categories</SelectItem>
+              {(categories as any[]).map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-9 w-9 shrink-0"
+            title="New category"
+            onClick={() => setNewCategoryOpen(true)}
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
 
         <Select
           value={supplierId}
@@ -227,17 +357,19 @@ export default function ProductsPage() {
                 >
                   {/* Thumbnail */}
                   <TableCell>
-                    {product.imageUrl ? (
-                      <img
-                        src={product.imageUrl}
-                        alt={product.name}
-                        className="h-9 w-9 rounded-md object-cover border"
-                      />
-                    ) : (
-                      <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted">
-                        <Package className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                    )}
+                    <div className="h-10 w-10 shrink-0 overflow-hidden rounded-md border">
+                      {product.imageUrl ? (
+                        <img
+                          src={product.imageUrl}
+                          alt={product.name}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-muted">
+                          <Package className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      )}
+                    </div>
                   </TableCell>
 
                   {/* Name */}
@@ -252,14 +384,14 @@ export default function ProductsPage() {
 
                   {/* Category */}
                   <TableCell className="text-sm">
-                    {product.category?.name ?? (
+                    {product.categoryName ?? (
                       <span className="text-muted-foreground">—</span>
                     )}
                   </TableCell>
 
                   {/* Supplier */}
                   <TableCell className="text-sm">
-                    {product.supplier?.name ?? (
+                    {product.supplierName ?? (
                       <span className="text-muted-foreground">—</span>
                     )}
                   </TableCell>
@@ -308,6 +440,16 @@ export default function ProductsPage() {
                           <Pencil className="mr-2 h-4 w-4" />
                           Edit
                         </DropdownMenuItem>
+                        {product.imageUrl && (
+                          <DropdownMenuItem
+                            onClick={() =>
+                              downloadImage(product.imageUrl, product.name)
+                            }
+                          >
+                            <ImageIcon className="mr-2 h-4 w-4" />
+                            Download Image
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem
                           className="text-destructive focus:text-destructive"
                           onClick={() => setDeleteId(product.id)}
@@ -349,6 +491,12 @@ export default function ProductsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* New Category Dialog */}
+      <NewCategoryDialog
+        open={newCategoryOpen}
+        onOpenChange={setNewCategoryOpen}
+      />
     </div>
   );
 }

@@ -314,15 +314,11 @@ function VariantCard({
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label className="text-xs">SKU</Label>
-          {productSku && (
-            <p className="text-xs text-muted-foreground">Prefix: {productSku}-</p>
-          )}
-          <Input
-            value={variant.sku}
-            onChange={(e) => onChange({ sku: e.target.value })}
-            placeholder={productSku ? `${productSku}-identifier` : "SKU-001"}
-            className="h-8 text-sm"
-          />
+          <div className="flex h-8 items-center rounded-md border bg-muted/50 px-3 text-sm font-mono text-muted-foreground">
+            {productSku
+              ? `${productSku}-${variant.attributeValue}`
+              : variant.attributeValue || "—"}
+          </div>
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Barcode</Label>
