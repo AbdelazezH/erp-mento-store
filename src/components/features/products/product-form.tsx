@@ -43,7 +43,7 @@ import {
 } from "@/components/ui/dialog";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { ImageUpload } from "./image-upload";
-import { Plus, X, ChevronDown, Pencil, Download, Images } from "lucide-react";
+import { Plus, X, ChevronDown, Pencil, Images } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -114,14 +114,6 @@ function generateSku() {
 
 function generateBarcode() {
   return Math.floor(1000000000000 + Math.random() * 9000000000000).toString();
-}
-
-function downloadImg(url: string) {
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = url.split("/").pop() ?? "image";
-  a.target = "_blank";
-  a.click();
 }
 
 // ─── Helper: generate cartesian product of selected values across attribute rows ─
@@ -197,28 +189,38 @@ function EditCategoryDialog({
 }: {
   open: boolean;
   onClose: () => void;
-  category: { id: string; name: string } | null;
+  category: { id: string; name: string; description?: string } | null;
 }) {
   const [name, setName] = useState(category?.name ?? "");
+  const [description, setDescription] = useState(category?.description ?? "");
   const update = useUpdateCategory();
 
-  useEffect(() => { setName(category?.name ?? ""); }, [category]);
+  useEffect(() => {
+    setName(category?.name ?? "");
+    setDescription(category?.description ?? "");
+  }, [category]);
 
   if (!category) return null;
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-sm">
         <DialogHeader><DialogTitle>Edit Category</DialogTitle></DialogHeader>
-        <div className="space-y-3 py-2">
-          <Label>Name</Label>
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Category name" autoFocus />
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <Label>Name</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Category name" autoFocus />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Description <span className="text-xs font-normal text-muted-foreground">(optional)</span></Label>
+            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Short description…" rows={2} />
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button
             disabled={!name.trim() || update.isPending}
             onClick={async () => {
-              await update.mutateAsync({ id: category.id, name: name.trim() });
+              await update.mutateAsync({ id: category.id, name: name.trim(), description: description.trim() || undefined });
               onClose();
             }}
           >
@@ -549,12 +551,9 @@ function VariantCard({
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Barcode</Label>
-          <Input
-            value={variant.barcode}
-            onChange={(e) => onChange({ barcode: e.target.value })}
-            placeholder="1234567890"
-            className="h-8 text-sm"
-          />
+          <div className="flex h-8 items-center rounded-md border bg-muted/50 px-3 text-xs font-mono text-muted-foreground select-all">
+            {variant.barcode || "—"}
+          </div>
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Stock</Label>
@@ -1092,10 +1091,12 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                     <Input id="sku" {...register("sku")} placeholder="PRD-A4X2TK" />
                   </div>
 
-                  {/* Barcode — hidden when variants are on */}
+                  {/* Barcode — auto-generated, read-only, hidden when variants are on */}
                   <div className={cn("space-y-1.5", hasVariants && "hidden")}>
-                    <Label htmlFor="barcode">Barcode</Label>
-                    <Input id="barcode" {...register("barcode")} placeholder="6244005906656" />
+                    <Label>Barcode</Label>
+                    <div className="flex h-9 items-center rounded-md border bg-muted/50 px-3 text-sm font-mono text-muted-foreground select-all">
+                      {watch("barcode") || "—"}
+                    </div>
                   </div>
                 </section>
 
@@ -1468,14 +1469,6 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={url} alt={`Gallery ${idx + 1}`} className="h-full w-full object-cover" />
                       <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => downloadImg(url)}
-                          className="p-1.5 rounded-md bg-white/20 hover:bg-white/40 transition-colors"
-                          title="Download"
-                        >
-                          <Download className="h-4 w-4 text-white" />
-                        </button>
                         <button
                           type="button"
                           onClick={() => setGalleryImages((g) => g.filter((_, i) => i !== idx))}
