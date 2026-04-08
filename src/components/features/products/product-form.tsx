@@ -44,7 +44,7 @@ import {
 } from "@/components/ui/dialog";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { ImageUpload } from "./image-upload";
-import { Plus, X, ChevronDown, Images } from "lucide-react";
+import { Plus, X, ChevronDown, Images, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -496,6 +496,209 @@ function GalleryUploadCell({ onUpload }: { onUpload: (url: string) => void }) {
   );
 }
 
+// ─── Media Picker Dialog ──────────────────────────────────────────────────────
+
+function MediaPickerDialog({
+  open,
+  onClose,
+  onSelect,
+  galleryImages,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSelect: (url: string) => void;
+  galleryImages: string[];
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  async function handleFile(file: File) {
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/uploads", { method: "POST", body: form });
+      if (!res.ok) throw new Error("Upload failed");
+      const { url } = await res.json();
+      onSelect(url);
+      onClose();
+    } catch {
+      toast.error("Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Select Image</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-5">
+          {/* Gallery images */}
+          {galleryImages.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">From Gallery</p>
+              <div className="grid grid-cols-4 gap-2">
+                {galleryImages.map((url, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    className="aspect-square rounded-lg overflow-hidden border-2 border-transparent hover:border-primary focus:border-primary transition-colors"
+                    onClick={() => { onSelect(url); onClose(); }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt={`Gallery ${i + 1}`} className="h-full w-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Upload new */}
+          <div className="space-y-2">
+            {galleryImages.length > 0 && (
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Upload New</p>
+            )}
+            <button
+              type="button"
+              disabled={uploading}
+              className="w-full border-2 border-dashed rounded-xl p-8 flex flex-col items-center gap-2 text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors disabled:opacity-50"
+              onClick={() => inputRef.current?.click()}
+            >
+              {uploading ? (
+                <span className="text-sm">Uploading…</span>
+              ) : (
+                <>
+                  <Upload className="h-6 w-6" />
+                  <span className="text-sm font-medium">Click to upload a photo</span>
+                  <span className="text-xs">PNG, JPG, WEBP supported</span>
+                </>
+              )}
+            </button>
+            <input
+              ref={inputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleFile(file);
+                e.target.value = "";
+              }}
+            />
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Product Image Picker ─────────────────────────────────────────────────────
+
+function ProductImagePicker({
+  value,
+  onSelect,
+  onRemove,
+  size = "md",
+  className,
+  galleryImages,
+}: {
+  value?: string | null;
+  onSelect: (url: string) => void;
+  onRemove?: () => void;
+  size?: "sm" | "md" | "lg";
+  className?: string;
+  galleryImages: string[];
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const sizeClasses = {
+    sm: "h-16 w-16",
+    md: "h-32 w-32",
+    lg: "h-48 w-full",
+  };
+
+  return (
+    <>
+      <div
+        className={cn(
+          "group relative border-2 border-dashed rounded-lg overflow-hidden flex items-center justify-center bg-muted/30 transition-colors",
+          !value && "cursor-pointer hover:bg-muted/50",
+          sizeClasses[size],
+          className
+        )}
+        onClick={!value ? () => setPickerOpen(true) : undefined}
+      >
+        {value ? (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={value} alt="" className="absolute inset-0 h-full w-full object-cover" />
+            {size === "sm" ? (
+              /* Small: corner X only */
+              onRemove && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onRemove(); }}
+                  className="absolute top-0.5 right-0.5 opacity-0 group-hover:opacity-100 transition-opacity rounded-full bg-black/60 hover:bg-red-500 p-0.5"
+                  title="Remove image"
+                >
+                  <X className="h-2.5 w-2.5 text-white" />
+                </button>
+              )
+            ) : (
+              /* Larger: overlay with change + remove */
+              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 rounded-[inherit]">
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setPickerOpen(true); }}
+                  className="p-1.5 rounded-md bg-white/20 hover:bg-white/40 transition-colors"
+                  title="Change image"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </svg>
+                </button>
+                {onRemove && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onRemove(); }}
+                    className="p-1.5 rounded-md bg-white/20 hover:bg-red-500/70 transition-colors"
+                    title="Remove image"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="flex flex-col items-center gap-1 text-muted-foreground pointer-events-none">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect width="18" height="18" x="3" y="3" rx="2" ry="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+            </svg>
+            {size !== "sm" && (
+              <span className="text-xs text-center px-2">
+                {galleryImages.length > 0 ? "Choose from gallery or upload" : "Click to upload"}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      <MediaPickerDialog
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onSelect={onSelect}
+        galleryImages={galleryImages}
+      />
+    </>
+  );
+}
+
 // ─── Variant Card ─────────────────────────────────────────────────────────────
 
 function VariantCard({
@@ -504,12 +707,14 @@ function VariantCard({
   onRemove,
   productSku,
   productSellingPrice,
+  galleryImages,
 }: {
   variant: VariantDraft;
   onChange: (updated: Partial<VariantDraft>) => void;
   onRemove: () => void;
   productSku?: string | null;
   productSellingPrice?: number | null;
+  galleryImages: string[];
 }) {
   const priceHint = productSellingPrice != null
     ? `Default: L.E ${productSellingPrice}`
@@ -526,12 +731,13 @@ function VariantCard({
       </button>
 
       <div className="flex items-start gap-3">
-        <ImageUpload
+        <ProductImagePicker
           value={variant.imageUrl || null}
-          onUpload={(url) => onChange({ imageUrl: url })}
+          onSelect={(url) => onChange({ imageUrl: url })}
           onRemove={() => onChange({ imageUrl: "" })}
           size="sm"
           className="shrink-0"
+          galleryImages={galleryImages}
         />
         <div>
           <p className="font-medium text-sm">{variant.name}</p>
@@ -1263,12 +1469,13 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
               <div className="space-y-3">
                 <div className="border rounded-xl p-4 space-y-3">
                   <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Product Image</h2>
-                  <ImageUpload
+                  <ProductImagePicker
                     value={imageUrl}
-                    onUpload={(url) => setValue("imageUrl", url)}
+                    onSelect={(url) => setValue("imageUrl", url)}
                     onRemove={() => setValue("imageUrl", null)}
                     size="lg"
                     className="w-full h-48"
+                    galleryImages={galleryImages}
                   />
                 </div>
               </div>
@@ -1417,6 +1624,7 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                           variant={variant}
                           productSku={watch("sku")}
                           productSellingPrice={sellingPrice}
+                          galleryImages={galleryImages}
                           onChange={(update) =>
                             setVariantDrafts((prev) =>
                               prev.map((v, i) => (i === idx ? { ...v, ...update } : v))
