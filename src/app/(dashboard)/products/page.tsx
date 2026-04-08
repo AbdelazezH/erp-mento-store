@@ -99,7 +99,7 @@ function downloadCSV(productList: any[]) {
     p.barcode ?? "",
     p.categoryName ?? "",
     p.supplierName ?? "",
-    p.stockQuantity,
+    p.totalStock ?? p.stockQuantity ?? 0,
     p.sellingPrice ?? "",
     p.averageCost ?? "",
     p.isPublished ? "Published" : "Draft",
@@ -398,7 +398,7 @@ export default function ProductsPage() {
 
                   {/* Stock */}
                   <TableCell>
-                    <StockBadge qty={product.stockQuantity ?? 0} />
+                    <StockBadge qty={product.totalStock ?? product.stockQuantity ?? 0} />
                   </TableCell>
 
                   {/* Selling Price */}

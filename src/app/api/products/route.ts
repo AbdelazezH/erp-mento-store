@@ -39,7 +39,16 @@ export async function GET(req: NextRequest) {
   if (search) conditions.push(ilike(products.name, `%${search}%`));
   if (categoryId) conditions.push(eq(products.categoryId, categoryId));
   if (supplierId) conditions.push(eq(products.supplierId, supplierId));
-  if (lowStock) conditions.push(sql`${products.stockQuantity} < 10`);
+  if (lowStock) conditions.push(sql`
+    CASE WHEN ${products.hasVariants} = true
+    THEN COALESCE((
+      SELECT SUM(pv.stock_quantity)
+      FROM product_variants pv
+      WHERE pv.product_id = ${products.id}
+    ), 0)
+    ELSE ${products.stockQuantity}
+    END < 10
+  `);
 
   const rows = await db
     .select({
@@ -53,6 +62,16 @@ export async function GET(req: NextRequest) {
       discountPercent: products.discountPercent,
       averageCost: products.averageCost,
       stockQuantity: products.stockQuantity,
+      totalStock: sql<number>`
+        CASE WHEN ${products.hasVariants} = true
+        THEN COALESCE((
+          SELECT SUM(pv.stock_quantity)
+          FROM product_variants pv
+          WHERE pv.product_id = ${products.id}
+        ), 0)
+        ELSE ${products.stockQuantity}
+        END
+      `,
       sku: products.sku,
       barcode: products.barcode,
       imageUrl: products.imageUrl,
