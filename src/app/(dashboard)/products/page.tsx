@@ -91,7 +91,7 @@ function StockBadge({ qty }: { qty: number }) {
 function downloadCSV(productList: any[]) {
   const headers = [
     "Name", "SKU", "Barcode", "Category", "Supplier",
-    "Stock", "Selling Price", "Avg Cost", "Status", "Image URL",
+    "Stock", "Selling Price", "Base Cost", "Avg Cost", "Status", "Image URL",
   ];
   const rows = productList.map((p) => [
     p.name,
@@ -101,6 +101,7 @@ function downloadCSV(productList: any[]) {
     p.supplierName ?? "",
     p.totalStock ?? p.stockQuantity ?? 0,
     p.sellingPrice ?? "",
+    p.basePrice ?? "",
     p.averageCost ?? "",
     p.isPublished ? "Published" : "Draft",
     p.imageUrl ?? "",
@@ -343,7 +344,7 @@ export default function ProductsPage() {
                 <TableHead>Supplier</TableHead>
                 <TableHead>Stock</TableHead>
                 <TableHead>Selling Price</TableHead>
-                <TableHead>Avg Cost</TableHead>
+                <TableHead>Base Cost</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="w-12"></TableHead>
               </TableRow>
@@ -408,11 +409,22 @@ export default function ProductsPage() {
                       : "—"}
                   </TableCell>
 
-                  {/* Avg Cost */}
-                  <TableCell className="tabular-nums text-muted-foreground text-sm">
-                    {product.averageCost && parseFloat(product.averageCost) > 0
-                      ? formatCurrency(product.averageCost)
-                      : "—"}
+                  {/* Base Cost + optional avg cost */}
+                  <TableCell className="tabular-nums">
+                    {product.basePrice && parseFloat(product.basePrice) > 0 ? (
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-medium text-sm">{formatCurrency(product.basePrice)}</span>
+                        {product.averageCost &&
+                          parseFloat(product.averageCost) > 0 &&
+                          parseFloat(product.averageCost) !== parseFloat(product.basePrice) && (
+                            <span className="text-xs text-muted-foreground tabular-nums">
+                              avg {formatCurrency(product.averageCost)}
+                            </span>
+                          )}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </TableCell>
 
                   {/* Published */}
