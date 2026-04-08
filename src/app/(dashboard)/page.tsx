@@ -12,8 +12,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  AreaChart,
-  Area,
 } from "recharts";
 import {
   Package,
@@ -26,6 +24,10 @@ import {
   FileText,
   Boxes,
   BarChart3,
+  Wallet,
+  Store,
+  Receipt,
+  ArrowUpRight,
 } from "lucide-react";
 
 function StatCard({
@@ -82,7 +84,7 @@ export default function DashboardPage() {
     return (
       <div className="space-y-6">
         <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: 8 }).map((_, i) => (
+          {Array.from({ length: 14 }).map((_, i) => (
             <Card key={i}>
               <CardContent className="pt-6">
                 <div className="space-y-2">
@@ -105,60 +107,105 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* KPI Grid */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Total Revenue"
-          value={formatCurrency(stats?.totalRevenue)}
-          subtitle={`${stats?.orderCount ?? 0} delivered orders`}
-          icon={DollarSign}
-          color="green"
-        />
-        <StatCard
-          title="Total Profit"
-          value={formatCurrency(stats?.totalProfit)}
-          subtitle={`${profitMargin}% margin`}
-          icon={TrendingUp}
-          color="blue"
-        />
-        <StatCard
-          title="Total Expenses"
-          value={formatCurrency(stats?.totalExpenses)}
-          subtitle={`${stats?.pendingBillCount ?? 0} pending bills`}
-          icon={FileText}
-          color="orange"
-        />
-        <StatCard
-          title="Inventory Value"
-          value={formatCurrency(stats?.inventoryValue)}
-          subtitle={stats?.lowStockCount > 0 ? `${stats.lowStockCount} low stock` : "All stocked"}
-          icon={Boxes}
-          color={stats?.lowStockCount > 0 ? "red" : "purple"}
-        />
-        <StatCard
-          title="Products"
-          value={formatNumber(stats?.productCount)}
-          icon={Package}
-          color="blue"
-        />
-        <StatCard
-          title="Suppliers"
-          value={formatNumber(stats?.supplierCount)}
-          icon={Truck}
-          color="purple"
-        />
-        <StatCard
-          title="Customers"
-          value={formatNumber(stats?.customerCount)}
-          icon={Users}
-          color="green"
-        />
-        <StatCard
-          title="Categories"
-          value={formatNumber(stats?.categoryCount)}
-          icon={BarChart3}
-          color="orange"
-        />
+      {/* KPI Grid — Financial */}
+      <div>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Sales & Profit</h2>
+        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            title="Total Sales"
+            value={formatCurrency(stats?.totalRevenue)}
+            subtitle={`${stats?.orderCount ?? 0} delivered orders`}
+            icon={DollarSign}
+            color="green"
+          />
+          <StatCard
+            title="Total Profit"
+            value={formatCurrency(stats?.totalProfit)}
+            subtitle={`${profitMargin}% margin`}
+            icon={TrendingUp}
+            color="blue"
+          />
+          <StatCard
+            title="Total Delivered Orders"
+            value={formatNumber(stats?.orderCount ?? 0)}
+            subtitle="Completed orders"
+            icon={ShoppingCart}
+            color="green"
+          />
+          <StatCard
+            title="Inventory Value"
+            value={formatCurrency(stats?.inventoryValue)}
+            subtitle={stats?.lowStockCount > 0 ? `${stats.lowStockCount} low stock` : "All stocked"}
+            icon={Boxes}
+            color={stats?.lowStockCount > 0 ? "red" : "purple"}
+          />
+        </div>
+      </div>
+
+      {/* KPI Grid — Inventory & Expenses */}
+      <div>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Inventory & Expenses</h2>
+        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            title="Expected Inventory Profit"
+            value={formatCurrency(stats?.expectedInventoryProfit)}
+            subtitle="Based on selling vs base price"
+            icon={ArrowUpRight}
+            color="green"
+          />
+          <StatCard
+            title="Total Investment"
+            value={formatCurrency(stats?.totalInvestment)}
+            subtitle="All invoices ever"
+            icon={Wallet}
+            color="purple"
+          />
+          <StatCard
+            title="Total Goods"
+            value={formatCurrency(stats?.totalGoods)}
+            subtitle="Supplier invoices only"
+            icon={Store}
+            color="orange"
+          />
+          <StatCard
+            title="Total Expenses"
+            value={formatCurrency(stats?.totalExpensesAllTime)}
+            subtitle="Non-supplier invoices"
+            icon={Receipt}
+            color="red"
+          />
+        </div>
+      </div>
+
+      {/* KPI Grid — Counts */}
+      <div>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Overview</h2>
+        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            title="Products"
+            value={formatNumber(stats?.productCount)}
+            icon={Package}
+            color="blue"
+          />
+          <StatCard
+            title="Suppliers"
+            value={formatNumber(stats?.supplierCount)}
+            icon={Truck}
+            color="purple"
+          />
+          <StatCard
+            title="Customers"
+            value={formatNumber(stats?.customerCount)}
+            icon={Users}
+            color="green"
+          />
+          <StatCard
+            title="Categories"
+            value={formatNumber(stats?.categoryCount)}
+            icon={BarChart3}
+            color="orange"
+          />
+        </div>
       </div>
 
       {/* Charts Row */}

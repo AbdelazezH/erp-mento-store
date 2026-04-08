@@ -12,7 +12,7 @@ import {
 } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { apiError, apiResponse } from "@/lib/utils";
-import { sql, eq, and, sum, count, avg } from "drizzle-orm";
+import { sql, eq, and, sum, count, avg, ne } from "drizzle-orm";
 
 export async function GET() {
   const session = await getSession();
@@ -26,9 +26,13 @@ export async function GET() {
     orderStats,
     billStats,
     inventoryValue,
+    expectedInventoryProfit,
     lowStockProducts,
     categoryAnalytics,
     recentOrders,
+    totalInvestment,
+    totalGoods,
+    totalExpensesAllTime,
   ] = await Promise.all([
     // Product count
     db.select({ count: count() }).from(products).then((r) => r[0].count),
@@ -54,22 +58,30 @@ export async function GET() {
       .where(eq(orders.status, "delivered"))
       .then((r) => r[0]),
 
-    // Bill stats
+    // Bill stats (pending count)
     db
       .select({
-        totalExpenses: sum(bills.totalAmount),
         pendingBills: count(),
       })
       .from(bills)
       .where(eq(bills.status, "pending"))
       .then((r) => r[0]),
 
-    // Inventory value (stockQuantity * averageCost)
+    // Inventory value (stockQuantity * basePrice)
     db
       .select({
-        value: sql<string>`SUM(COALESCE(${products.stockQuantity} * ${products.averageCost}::numeric, 0))`,
+        value: sql<string>`SUM(COALESCE(${products.stockQuantity} * ${products.basePrice}::numeric, 0))`,
       })
       .from(products)
+      .then((r) => r[0].value),
+
+    // Expected inventory profit ((sellingPrice - basePrice) * stockQuantity)
+    db
+      .select({
+        value: sql<string>`SUM(COALESCE((${products.sellingPrice}::numeric - ${products.basePrice}::numeric) * ${products.stockQuantity}, 0))`,
+      })
+      .from(products)
+      .where(sql`${products.basePrice} IS NOT NULL AND ${products.sellingPrice} IS NOT NULL`)
       .then((r) => r[0].value),
 
     // Low stock products (< 10)
@@ -95,13 +107,27 @@ export async function GET() {
 
     // Recent orders
     db.select().from(orders).orderBy(sql`${orders.createdAt} DESC`).limit(5),
-  ]);
 
-  // Total expenses (all bills)
-  const totalExpensesResult = await db
-    .select({ total: sum(bills.totalAmount) })
-    .from(bills)
-    .where(eq(bills.status, "paid"));
+    // Total Investment: ALL bills regardless of status
+    db
+      .select({ total: sum(bills.totalAmount) })
+      .from(bills)
+      .then((r) => r[0].total),
+
+    // Total Goods: supplier_bill type only, all statuses
+    db
+      .select({ total: sum(bills.totalAmount) })
+      .from(bills)
+      .where(eq(bills.billType, "supplier_bill"))
+      .then((r) => r[0].total),
+
+    // Total Expenses (all time): everything except supplier_bill
+    db
+      .select({ total: sum(bills.totalAmount) })
+      .from(bills)
+      .where(ne(bills.billType, "supplier_bill"))
+      .then((r) => r[0].total),
+  ]);
 
   return apiResponse({
     productCount,
@@ -113,10 +139,13 @@ export async function GET() {
     totalProfit: orderStats.totalProfit ?? "0",
     orderCount: orderStats.orderCount,
     pendingBillCount: billStats.pendingBills,
-    totalExpenses: totalExpensesResult[0].total ?? "0",
     inventoryValue: inventoryValue ?? "0",
+    expectedInventoryProfit: expectedInventoryProfit ?? "0",
     lowStockCount: lowStockProducts,
     categoryAnalytics,
     recentOrders,
+    totalInvestment: totalInvestment ?? "0",
+    totalGoods: totalGoods ?? "0",
+    totalExpensesAllTime: totalExpensesAllTime ?? "0",
   });
 }

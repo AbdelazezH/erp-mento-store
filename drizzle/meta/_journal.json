@@ -8,6 +8,13 @@
       "when": 1775328116713,
       "tag": "0000_brief_azazel",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1775648460303,
+      "tag": "0001_outgoing_namora",
+      "breakpoints": true
     }
   ]
 }

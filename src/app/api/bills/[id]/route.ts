@@ -23,7 +23,7 @@ const updateSchema = z.object({
   issueDate: z.string().optional(),
   dueDate: z.string().optional().nullable(),
   status: z.enum(["pending", "overdue", "paid", "cancelled"]).optional(),
-  billType: z.enum(["supplier_bill", "other_expense"]).optional(),
+  billType: z.enum(["supplier_bill", "other_expense", "operation_invoice", "packaging_invoice", "shipping_invoice", "devices_invoice", "website_invoice"]).optional(),
   paidBy: z.string().optional().nullable(),
   receiptImageUrl: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
