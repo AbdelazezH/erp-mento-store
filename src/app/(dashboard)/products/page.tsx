@@ -61,7 +61,6 @@ import {
   Package,
   Filter,
   Download,
-  Image as ImageIcon,
 } from "lucide-react";
 
 // ─── Stock Badge ─────────────────────────────────────────────────────────────
@@ -120,23 +119,6 @@ function downloadCSV(productList: any[]) {
   URL.revokeObjectURL(url);
 }
 
-async function downloadImage(imageUrl: string, productName: string) {
-  try {
-    const res = await fetch(imageUrl);
-    const blob = await res.blob();
-    const ext = blob.type.split("/")[1] || "jpg";
-    const safeName = productName.replace(/[^a-z0-9]/gi, "_").toLowerCase();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${safeName}.${ext}`;
-    a.click();
-    URL.revokeObjectURL(url);
-  } catch {
-    // If fetch fails (CORS), open in new tab so user can save manually
-    window.open(imageUrl, "_blank");
-  }
-}
 
 // ─── New Category Dialog ──────────────────────────────────────────────────────
 
@@ -471,16 +453,6 @@ export default function ProductsPage() {
                           <Pencil className="mr-2 h-4 w-4" />
                           Edit
                         </DropdownMenuItem>
-                        {product.imageUrl && (
-                          <DropdownMenuItem
-                            onClick={() =>
-                              downloadImage(product.imageUrl, product.name)
-                            }
-                          >
-                            <ImageIcon className="mr-2 h-4 w-4" />
-                            Download Image
-                          </DropdownMenuItem>
-                        )}
                         <DropdownMenuItem
                           className="text-destructive focus:text-destructive"
                           onClick={() => setDeleteId(product.id)}
