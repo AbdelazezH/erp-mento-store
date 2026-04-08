@@ -44,7 +44,7 @@ import {
 } from "@/components/ui/dialog";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { ImageUpload } from "./image-upload";
-import { Plus, X, ChevronDown, Pencil, Images } from "lucide-react";
+import { Plus, X, ChevronDown, Images } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -840,7 +840,6 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
 
   // ── Dialogs ──
   const [showNewCategory, setShowNewCategory] = useState(false);
-  const [showEditCategory, setShowEditCategory] = useState(false);
   const [showNewSupplier, setShowNewSupplier] = useState(false);
 
   const selectedCategory = (categories as any[]).find((c) => c.id === categoryId) ?? null;
@@ -1019,25 +1018,13 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
                         <Label>Category</Label>
-                        <div className="flex items-center gap-2">
-                          {selectedCategory && (
-                            <button
-                              type="button"
-                              onClick={() => setShowEditCategory(true)}
-                              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-0.5"
-                              title="Edit category"
-                            >
-                              <Pencil className="h-3 w-3" />
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => setShowNewCategory(true)}
-                            className="text-xs text-primary hover:underline"
-                          >
-                            + New
-                          </button>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowNewCategory(true)}
+                          className="text-xs text-primary hover:underline"
+                        >
+                          + New
+                        </button>
                       </div>
                       <Select
                         value={categoryId ?? "__none__"}
@@ -1519,11 +1506,6 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
         open={showNewCategory}
         onClose={() => setShowNewCategory(false)}
         onCreated={(id) => setValue("categoryId", id)}
-      />
-      <EditCategoryDialog
-        open={showEditCategory}
-        onClose={() => setShowEditCategory(false)}
-        category={selectedCategory}
       />
       <NewSupplierDialog
         open={showNewSupplier}

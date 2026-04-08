@@ -31,7 +31,7 @@ const navItems = [
   { href: "/customers", label: "Customers", icon: Users },
   { href: "/orders", label: "Orders", icon: ShoppingCart },
   { href: "/campaigns", label: "Campaigns", icon: Megaphone },
-  { href: "/attributes", label: "Attributes", icon: Tag },
+  { href: "/attributes", label: "Taxonomy", icon: Tag },
 ];
 
 interface SidebarProps {

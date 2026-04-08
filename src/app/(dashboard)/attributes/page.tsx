@@ -9,12 +9,18 @@ import {
   useCreateAttribute,
   useUpdateAttribute,
   useDeleteAttribute,
+  useCategories,
+  useCreateCategory,
+  useUpdateCategory,
+  useDeleteCategory,
 } from "@/hooks/use-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -51,10 +57,11 @@ import {
   Trash2,
   MoreHorizontal,
   Tags,
+  FolderOpen,
   X,
 } from "lucide-react";
 
-// ─── Schema ──────────────────────────────────────────────────────────────────
+// ─── Attribute Schema ─────────────────────────────────────────────────────────
 
 const attributeValueSchema = z.object({
   value: z.string().min(1, "Value is required"),
@@ -64,16 +71,22 @@ const attributeValueSchema = z.object({
 const attributeSchema = z.object({
   name: z.string().min(1, "Name is required"),
   type: z.enum(["text", "color"]),
-  values: z
-    .array(attributeValueSchema)
-    .min(1, "Add at least one value"),
+  values: z.array(attributeValueSchema).min(1, "Add at least one value"),
 });
 
 type AttributeFormValues = z.infer<typeof attributeSchema>;
 
+// ─── Category Schema ──────────────────────────────────────────────────────────
+
+const categorySchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  description: z.string().optional(),
+});
+
+type CategoryFormValues = z.infer<typeof categorySchema>;
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Ensures a hex string is in #RRGGBB format */
 function normalizeHex(hex: string): string {
   if (!hex) return "#000000";
   return hex.startsWith("#") ? hex : `#${hex}`;
@@ -113,11 +126,7 @@ function AttributeFormDialog({
     },
   });
 
-  const { fields, append, remove } = useFieldArray({
-    control,
-    name: "values",
-  });
-
+  const { fields, append, remove } = useFieldArray({ control, name: "values" });
   const watchedType = watch("type");
 
   const onSubmit = async (data: AttributeFormValues) => {
@@ -132,7 +141,6 @@ function AttributeFormDialog({
           sortOrder: i,
         })),
     };
-
     if (attributeId) {
       await updateAttribute.mutateAsync({ id: attributeId, ...payload });
     } else {
@@ -142,36 +150,21 @@ function AttributeFormDialog({
     onClose();
   };
 
-  const handleClose = () => {
-    reset();
-    onClose();
-  };
+  const handleClose = () => { reset(); onClose(); };
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
-            {attributeId ? "Edit Attribute" : "New Attribute"}
-          </DialogTitle>
+          <DialogTitle>{attributeId ? "Edit Attribute" : "New Attribute"}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-          {/* Name */}
           <div className="space-y-1.5">
-            <Label htmlFor="name">
-              Name <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="name"
-              {...register("name")}
-              placeholder="e.g. Color, Size, Material"
-            />
-            {errors.name && (
-              <p className="text-xs text-destructive">{errors.name.message}</p>
-            )}
+            <Label htmlFor="attr-name">Name <span className="text-destructive">*</span></Label>
+            <Input id="attr-name" {...register("name")} placeholder="e.g. Color, Size, Material" />
+            {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
           </div>
 
-          {/* Type */}
           <div className="space-y-1.5">
             <Label>Type</Label>
             <Select
@@ -188,12 +181,9 @@ function AttributeFormDialog({
             </Select>
           </div>
 
-          {/* Values */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label>
-                Values <span className="text-destructive">*</span>
-              </Label>
+              <Label>Values <span className="text-destructive">*</span></Label>
               <Button
                 type="button"
                 variant="ghost"
@@ -205,42 +195,25 @@ function AttributeFormDialog({
                 Add value
               </Button>
             </div>
-
             {errors.values && typeof errors.values.message === "string" && (
               <p className="text-xs text-destructive">{errors.values.message}</p>
             )}
-
             <div className="space-y-2">
               {fields.map((field, index) => (
                 <div key={field.id} className="flex items-center gap-2">
-                  {/* Color picker for color type */}
                   {watchedType === "color" && (
-                    <div className="relative shrink-0">
-                      <input
-                        type="color"
-                        {...register(`values.${index}.colorHex`)}
-                        defaultValue={field.colorHex || "#000000"}
-                        className="h-9 w-9 cursor-pointer rounded-md border border-input p-0.5"
-                        title="Pick color"
-                      />
-                    </div>
+                    <input
+                      type="color"
+                      {...register(`values.${index}.colorHex`)}
+                      defaultValue={field.colorHex || "#000000"}
+                      className="h-9 w-9 cursor-pointer rounded-md border border-input p-0.5 shrink-0"
+                    />
                   )}
-
                   <Input
                     {...register(`values.${index}.value`)}
-                    placeholder={
-                      watchedType === "color"
-                        ? "e.g. Red, Ocean Blue"
-                        : "e.g. Small, XL, Cotton"
-                    }
+                    placeholder={watchedType === "color" ? "e.g. Red, Ocean Blue" : "e.g. Small, XL, Cotton"}
                     className="flex-1"
                   />
-                  {errors.values?.[index]?.value && (
-                    <p className="text-xs text-destructive sr-only">
-                      {errors.values[index]?.value?.message}
-                    </p>
-                  )}
-
                   <Button
                     type="button"
                     variant="ghost"
@@ -250,7 +223,6 @@ function AttributeFormDialog({
                     disabled={fields.length === 1}
                   >
                     <X className="h-4 w-4" />
-                    <span className="sr-only">Remove</span>
                   </Button>
                 </div>
               ))}
@@ -258,15 +230,82 @@ function AttributeFormDialog({
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={handleClose}>
-              Cancel
-            </Button>
+            <Button type="button" variant="outline" onClick={handleClose}>Cancel</Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting
-                ? "Saving…"
-                : attributeId
-                ? "Save Changes"
-                : "Create Attribute"}
+              {isSubmitting ? "Saving…" : attributeId ? "Save Changes" : "Create Attribute"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Category Form Dialog ─────────────────────────────────────────────────────
+
+function CategoryFormDialog({
+  open,
+  onClose,
+  category,
+}: {
+  open: boolean;
+  onClose: () => void;
+  category?: { id: string; name: string; description?: string } | null;
+}) {
+  const createCategory = useCreateCategory();
+  const updateCategory = useUpdateCategory();
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<CategoryFormValues>({
+    resolver: zodResolver(categorySchema),
+    defaultValues: {
+      name: category?.name ?? "",
+      description: category?.description ?? "",
+    },
+    values: {
+      name: category?.name ?? "",
+      description: category?.description ?? "",
+    },
+  });
+
+  const onSubmit = async (data: CategoryFormValues) => {
+    if (category) {
+      await updateCategory.mutateAsync({ id: category.id, name: data.name, description: data.description?.trim() || undefined });
+    } else {
+      await createCategory.mutateAsync({ name: data.name, description: data.description?.trim() || undefined });
+    }
+    reset();
+    onClose();
+  };
+
+  const handleClose = () => { reset(); onClose(); };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>{category ? "Edit Category" : "New Category"}</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-1">
+          <div className="space-y-1.5">
+            <Label htmlFor="cat-name">Name <span className="text-destructive">*</span></Label>
+            <Input id="cat-name" {...register("name")} placeholder="e.g. Bags, Accessories" autoFocus />
+            {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="cat-desc">
+              Description <span className="text-xs font-normal text-muted-foreground">(optional)</span>
+            </Label>
+            <Textarea id="cat-desc" {...register("description")} placeholder="Short description…" rows={2} />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={handleClose}>Cancel</Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Saving…" : category ? "Save Changes" : "Create Category"}
             </Button>
           </DialogFooter>
         </form>
@@ -277,28 +316,13 @@ function AttributeFormDialog({
 
 // ─── Value Chip ───────────────────────────────────────────────────────────────
 
-function ValueChip({
-  value,
-  colorHex,
-  type,
-}: {
-  value: string;
-  colorHex?: string | null;
-  type: "text" | "color";
-}) {
+function ValueChip({ value, colorHex, type }: { value: string; colorHex?: string | null; type: "text" | "color" }) {
   if (type === "color") {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-full border bg-background px-2.5 py-0.5 text-xs font-medium">
-        <span
-          className="h-3 w-3 rounded-full border border-black/10 shrink-0"
-          style={{ backgroundColor: colorHex ?? "#000" }}
-        />
+        <span className="h-3 w-3 rounded-full border border-black/10 shrink-0" style={{ backgroundColor: colorHex ?? "#000" }} />
         {value}
-        {colorHex && (
-          <span className="text-muted-foreground font-mono text-[10px]">
-            {colorHex}
-          </span>
-        )}
+        {colorHex && <span className="text-muted-foreground font-mono text-[10px]">{colorHex}</span>}
       </span>
     );
   }
@@ -309,9 +333,9 @@ function ValueChip({
   );
 }
 
-// ─── Page ────────────────────────────────────────────────────────────────────
+// ─── Attributes Tab ───────────────────────────────────────────────────────────
 
-export default function AttributesPage() {
+function AttributesTab() {
   const [createOpen, setCreateOpen] = useState(false);
   const [editAttribute, setEditAttribute] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -326,22 +350,15 @@ export default function AttributesPage() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Attributes</h1>
-          <p className="text-sm text-muted-foreground">
-            Define product attributes like color, size, or material
-          </p>
-        </div>
+    <>
+      <div className="flex items-center justify-between mb-6">
+        <p className="text-sm text-muted-foreground">Define product attributes like color, size, or material.</p>
         <Button onClick={() => setCreateOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
           New Attribute
         </Button>
       </div>
 
-      {/* Content */}
       {isLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -352,9 +369,7 @@ export default function AttributesPage() {
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-24 text-center">
           <Tags className="mb-4 h-12 w-12 text-muted-foreground/40" />
           <h3 className="text-lg font-semibold">No attributes yet</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Create attributes to organize product variants.
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">Create attributes to organize product variants.</p>
           <Button className="mt-4" onClick={() => setCreateOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
             New Attribute
@@ -367,67 +382,41 @@ export default function AttributesPage() {
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="space-y-1 min-w-0">
-                    <CardTitle className="text-base truncate">
-                      {attr.name}
-                    </CardTitle>
+                    <CardTitle className="text-base truncate">{attr.name}</CardTitle>
                     <div>
                       {attr.type === "color" ? (
-                        <Badge variant="info" className="text-[11px]">
-                          Color
-                        </Badge>
+                        <Badge variant="info" className="text-[11px]">Color</Badge>
                       ) : (
-                        <Badge variant="secondary" className="text-[11px]">
-                          Text
-                        </Badge>
+                        <Badge variant="secondary" className="text-[11px]">Text</Badge>
                       )}
                     </div>
                   </div>
-
-                  {/* Actions */}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
+                      <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                         <MoreHorizontal className="h-4 w-4" />
-                        <span className="sr-only">Open menu</span>
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={() => setEditAttribute(attr)}>
-                        <Pencil className="mr-2 h-4 w-4" />
-                        Edit
+                        <Pencil className="mr-2 h-4 w-4" />Edit
                       </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="text-destructive focus:text-destructive"
-                        onClick={() => setDeleteId(attr.id)}
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Delete
+                      <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDeleteId(attr.id)}>
+                        <Trash2 className="mr-2 h-4 w-4" />Delete
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
               </CardHeader>
-
               <CardContent>
                 {attr.values && attr.values.length > 0 ? (
                   <div className="flex flex-wrap gap-1.5">
                     {(attr.values as any[]).map((v: any) => (
-                      <ValueChip
-                        key={v.id}
-                        value={v.value}
-                        colorHex={v.colorHex}
-                        type={attr.type}
-                      />
+                      <ValueChip key={v.id} value={v.value} colorHex={v.colorHex} type={attr.type} />
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground italic">
-                    No values defined
-                  </p>
+                  <p className="text-sm text-muted-foreground italic">No values defined</p>
                 )}
               </CardContent>
             </Card>
@@ -435,13 +424,7 @@ export default function AttributesPage() {
         </div>
       )}
 
-      {/* Create Dialog */}
-      <AttributeFormDialog
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-      />
-
-      {/* Edit Dialog */}
+      <AttributeFormDialog open={createOpen} onClose={() => setCreateOpen(false)} />
       {editAttribute && (
         <AttributeFormDialog
           open={!!editAttribute}
@@ -450,41 +433,164 @@ export default function AttributesPage() {
           defaultValues={{
             name: editAttribute.name ?? "",
             type: editAttribute.type ?? "text",
-            values:
-              editAttribute.values && editAttribute.values.length > 0
-                ? editAttribute.values.map((v: any) => ({
-                    value: v.value,
-                    colorHex: v.colorHex ?? "#000000",
-                  }))
-                : [{ value: "", colorHex: "#000000" }],
+            values: editAttribute.values?.length > 0
+              ? editAttribute.values.map((v: any) => ({ value: v.value, colorHex: v.colorHex ?? "#000000" }))
+              : [{ value: "", colorHex: "#000000" }],
           }}
         />
       )}
-
-      {/* Delete Confirmation */}
-      <AlertDialog
-        open={!!deleteId}
-        onOpenChange={(v) => !v && setDeleteId(null)}
-      >
+      <AlertDialog open={!!deleteId} onOpenChange={(v) => !v && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Attribute</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete this attribute and all its values.
-              This action cannot be undone.
+              This will permanently delete this attribute and all its values. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={handleDelete}
-            >
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleDelete}>
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </>
+  );
+}
+
+// ─── Categories Tab ───────────────────────────────────────────────────────────
+
+function CategoriesTab() {
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editCategory, setEditCategory] = useState<any | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  const { data: categories = [], isLoading } = useCategories();
+  const deleteCategory = useDeleteCategory();
+
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    await deleteCategory.mutateAsync(deleteId);
+    setDeleteId(null);
+  };
+
+  return (
+    <>
+      <div className="flex items-center justify-between mb-6">
+        <p className="text-sm text-muted-foreground">Organise your products into categories.</p>
+        <Button onClick={() => setCreateOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          New Category
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-24 animate-pulse rounded-xl bg-muted" />
+          ))}
+        </div>
+      ) : (categories as any[]).length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-24 text-center">
+          <FolderOpen className="mb-4 h-12 w-12 text-muted-foreground/40" />
+          <h3 className="text-lg font-semibold">No categories yet</h3>
+          <p className="mt-1 text-sm text-muted-foreground">Create categories to group your products.</p>
+          <Button className="mt-4" onClick={() => setCreateOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Category
+          </Button>
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {(categories as any[]).map((cat) => (
+            <Card key={cat.id} className="group relative">
+              <CardHeader className="pb-2">
+                <div className="flex items-start justify-between gap-2">
+                  <CardTitle className="text-base truncate">{cat.name}</CardTitle>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => setEditCategory(cat)}>
+                        <Pencil className="mr-2 h-4 w-4" />Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDeleteId(cat.id)}>
+                        <Trash2 className="mr-2 h-4 w-4" />Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </CardHeader>
+              {cat.description && (
+                <CardContent className="pt-0">
+                  <p className="text-sm text-muted-foreground line-clamp-2">{cat.description}</p>
+                </CardContent>
+              )}
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <CategoryFormDialog open={createOpen} onClose={() => setCreateOpen(false)} />
+      {editCategory && (
+        <CategoryFormDialog
+          open={!!editCategory}
+          onClose={() => setEditCategory(null)}
+          category={editCategory}
+        />
+      )}
+      <AlertDialog open={!!deleteId} onOpenChange={(v) => !v && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Category</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this category. Products in this category will become uncategorised.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleDelete}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
+// ─── Page ────────────────────────────────────────────────────────────────────
+
+export default function TaxonomyPage() {
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Taxonomy</h1>
+        <p className="text-sm text-muted-foreground">
+          Manage attributes and categories for your products.
+        </p>
+      </div>
+
+      {/* Tabs */}
+      <Tabs defaultValue="attributes">
+        <TabsList>
+          <TabsTrigger value="attributes">Attributes</TabsTrigger>
+          <TabsTrigger value="categories">Categories</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="attributes" className="mt-6">
+          <AttributesTab />
+        </TabsContent>
+
+        <TabsContent value="categories" className="mt-6">
+          <CategoriesTab />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
