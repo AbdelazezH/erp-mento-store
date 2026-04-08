@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -1498,19 +1499,20 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
         <button type="submit" id="product-form-submit" className="hidden" />
       </form>
 
-      {/* Floating save bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-10 border-t bg-background px-6 py-3 flex items-center justify-end gap-3">
-        <Button type="button" variant="outline" onClick={() => router.push("/products")}>
-          Cancel
-        </Button>
-        <Button
-          type="submit"
-          form="product-form"
-          disabled={isSaving}
-        >
-          {isSaving ? "Saving…" : mode === "create" ? "Save Product" : "Save Changes"}
-        </Button>
-      </div>
+      {/* Save bar — portalled outside <main> so it never overlaps the sidebar */}
+      {typeof window !== "undefined" &&
+        document.getElementById("page-bottom-bar") &&
+        createPortal(
+          <div className="border-t bg-background px-6 py-3 flex items-center justify-end gap-3">
+            <Button type="button" variant="outline" onClick={() => router.push("/products")}>
+              Cancel
+            </Button>
+            <Button type="submit" form="product-form" disabled={isSaving}>
+              {isSaving ? "Saving…" : mode === "create" ? "Save Product" : "Save Changes"}
+            </Button>
+          </div>,
+          document.getElementById("page-bottom-bar")!
+        )}
 
       {/* Quick-create / edit dialogs */}
       <NewCategoryDialog

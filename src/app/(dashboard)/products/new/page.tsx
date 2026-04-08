@@ -6,7 +6,7 @@ import { ProductForm } from "@/components/features/products/product-form";
 
 export default function NewProductPage() {
   return (
-    <div className="min-h-screen pb-20">
+    <div className="min-h-screen">
       {/* Page header */}
       <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background px-6 py-4">
         <div className="flex items-center gap-3">

@@ -12,7 +12,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
 
   if (isLoading) {
     return (
-      <div className="min-h-screen pb-20">
+      <div className="min-h-screen">
         <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-background px-6 py-4">
           <Link
             href="/products"
@@ -45,7 +45,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
   }
 
   return (
-    <div className="min-h-screen pb-20">
+    <div className="min-h-screen">
       {/* Page header */}
       <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-background px-6 py-4">
         <Link
