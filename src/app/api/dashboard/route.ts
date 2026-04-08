@@ -67,28 +67,60 @@ export async function GET() {
       .where(eq(bills.status, "pending"))
       .then((r) => r[0]),
 
-    // Inventory value (stockQuantity * basePrice)
+    // Inventory value: for variant products use SUM(variant.stock * (base_price + additional_cost)),
+    // for simple products use stock_quantity * base_price
     db
       .select({
-        value: sql<string>`SUM(COALESCE(${products.stockQuantity} * ${products.basePrice}::numeric, 0))`,
+        value: sql<string>`
+          SUM(
+            CASE WHEN ${products.hasVariants} = true THEN
+              COALESCE((
+                SELECT SUM(pv.stock_quantity * (COALESCE(${products.basePrice}::numeric, 0) + COALESCE(pv.additional_cost::numeric, 0)))
+                FROM product_variants pv
+                WHERE pv.product_id = ${products.id}
+              ), 0)
+            ELSE
+              COALESCE(${products.stockQuantity} * ${products.basePrice}::numeric, 0)
+            END
+          )
+        `,
       })
       .from(products)
       .then((r) => r[0].value),
 
-    // Expected inventory profit ((sellingPrice - basePrice) * stockQuantity)
+    // Expected inventory profit: for variant products use variant stock * (selling_price - base_price - additional_cost),
+    // for simple products use stock_quantity * (selling_price - base_price)
     db
       .select({
-        value: sql<string>`SUM(COALESCE((${products.sellingPrice}::numeric - ${products.basePrice}::numeric) * ${products.stockQuantity}, 0))`,
+        value: sql<string>`
+          SUM(
+            CASE WHEN ${products.hasVariants} = true THEN
+              COALESCE((
+                SELECT SUM(pv.stock_quantity * (COALESCE(COALESCE(pv.selling_price, ${products.sellingPrice})::numeric, 0) - COALESCE(${products.basePrice}::numeric, 0) - COALESCE(pv.additional_cost::numeric, 0)))
+                FROM product_variants pv
+                WHERE pv.product_id = ${products.id}
+              ), 0)
+            ELSE
+              COALESCE((${products.sellingPrice}::numeric - ${products.basePrice}::numeric) * ${products.stockQuantity}, 0)
+            END
+          )
+        `,
       })
       .from(products)
-      .where(sql`${products.basePrice} IS NOT NULL AND ${products.sellingPrice} IS NOT NULL`)
+      .where(sql`${products.basePrice} IS NOT NULL`)
       .then((r) => r[0].value),
 
-    // Low stock products (< 10)
+    // Low stock products (< 10), correctly handles variant products
     db
       .select({ count: count() })
       .from(products)
-      .where(sql`${products.stockQuantity} < 10`)
+      .where(sql`
+        CASE WHEN ${products.hasVariants} = true THEN
+          COALESCE((SELECT SUM(pv.stock_quantity) FROM product_variants pv WHERE pv.product_id = ${products.id}), 0)
+        ELSE
+          ${products.stockQuantity}
+        END < 10
+      `)
       .then((r) => r[0].count),
 
     // Category analytics: revenue per category
