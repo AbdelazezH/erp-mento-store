@@ -91,7 +91,7 @@ function StockBadge({ qty }: { qty: number }) {
 function downloadCSV(productList: any[]) {
   const headers = [
     "Name", "SKU", "Barcode", "Category", "Supplier",
-    "Stock", "Selling Price", "Base Cost", "Avg Cost", "Status", "Image URL",
+    "Stock", "Selling Price", "Base Cost", "Avg Cost", "Profit", "Margin %", "Status", "Image URL",
   ];
   const rows = productList.map((p) => [
     p.name,
@@ -103,6 +103,8 @@ function downloadCSV(productList: any[]) {
     p.sellingPrice ?? "",
     p.basePrice ?? "",
     p.averageCost ?? "",
+    (() => { const sp = p.sellingPrice ? parseFloat(p.sellingPrice) : null; const bp = p.basePrice ? parseFloat(p.basePrice) : null; return sp && bp ? (sp - bp).toFixed(2) : ""; })(),
+    (() => { const sp = p.sellingPrice ? parseFloat(p.sellingPrice) : null; const bp = p.basePrice ? parseFloat(p.basePrice) : null; return sp && bp && sp > 0 ? (((sp - bp) / sp) * 100).toFixed(1) + "%" : ""; })(),
     p.isPublished ? "Published" : "Draft",
     p.imageUrl ?? "",
   ]);
@@ -345,6 +347,7 @@ export default function ProductsPage() {
                 <TableHead>Stock</TableHead>
                 <TableHead>Selling Price</TableHead>
                 <TableHead>Base Cost</TableHead>
+                <TableHead>Profit &amp; Margin</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="w-12"></TableHead>
               </TableRow>
@@ -425,6 +428,22 @@ export default function ProductsPage() {
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
+                  </TableCell>
+
+                  {/* Profit & Margin */}
+                  <TableCell className="tabular-nums">
+                    {(() => {
+                      const sp = product.sellingPrice ? parseFloat(product.sellingPrice) : null;
+                      const bp = product.basePrice ? parseFloat(product.basePrice) : null;
+                      if (!sp || !bp || sp <= 0 || bp <= 0) return <span className="text-muted-foreground">—</span>;
+                      const profit = sp - bp;
+                      const margin = (profit / sp) * 100;
+                      return (
+                        <span className={profit >= 0 ? "text-emerald-600 font-medium text-sm" : "text-destructive font-medium text-sm"}>
+                          {profit >= 0 ? "+" : ""}{profit.toFixed(0)} L.E ({margin.toFixed(0)}%)
+                        </span>
+                      );
+                    })()}
                   </TableCell>
 
                   {/* Published */}
