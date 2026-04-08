@@ -758,9 +758,12 @@ function VariantCard({
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Barcode</Label>
-          <div className="flex h-8 items-center rounded-md border bg-muted/50 px-3 text-xs font-mono text-muted-foreground select-all">
-            {variant.barcode || "—"}
-          </div>
+          <Input
+            value={variant.barcode}
+            onChange={(e) => onChange({ barcode: e.target.value })}
+            className="h-8 text-xs font-mono"
+            placeholder="Auto-generated"
+          />
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Stock</Label>
@@ -1285,12 +1288,15 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                     <Input id="sku" {...register("sku")} placeholder="PRD-A4X2TK" />
                   </div>
 
-                  {/* Barcode — auto-generated, read-only, hidden when variants are on */}
+                  {/* Barcode — auto-generated, editable, hidden when variants are on */}
                   <div className={cn("space-y-1.5", hasVariants && "hidden")}>
-                    <Label>Barcode</Label>
-                    <div className="flex h-9 items-center rounded-md border bg-muted/50 px-3 text-sm font-mono text-muted-foreground select-all">
-                      {watch("barcode") || "—"}
-                    </div>
+                    <Label htmlFor="barcode">Barcode</Label>
+                    <Input
+                      id="barcode"
+                      {...register("barcode")}
+                      placeholder="Auto-generated"
+                      className="font-mono text-sm"
+                    />
                   </div>
                 </section>
 
