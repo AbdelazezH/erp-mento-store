@@ -906,16 +906,16 @@ function CostHistoryTab({ productId }: { productId?: string }) {
     );
   }
 
-  // Calculate weighted average cost
-  let totalWeighted = 0;
+  // Calculate weighted average cost using discounted unit cost (lineTotal / qty)
+  let totalLineSum = 0;
   let totalQty = 0;
   for (const row of history) {
     const qty = parseFloat(row.quantity ?? "0");
-    const unit = parseFloat(row.unitPrice ?? "0");
-    totalWeighted += qty * unit;
+    const lineTotal = parseFloat(row.total ?? "0");
+    totalLineSum += lineTotal;
     totalQty += qty;
   }
-  const avgCost = totalQty > 0 ? totalWeighted / totalQty : 0;
+  const avgCost = totalQty > 0 ? totalLineSum / totalQty : 0;
 
   return (
     <div className="space-y-4">
@@ -929,15 +929,19 @@ function CostHistoryTab({ productId }: { productId?: string }) {
               <TableHead className="text-right">Qty</TableHead>
               <TableHead className="text-right">Unit Price</TableHead>
               <TableHead className="text-right">Discount</TableHead>
+              <TableHead className="text-right">Unit Cost</TableHead>
               <TableHead className="text-right">Line Total</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {history.map((row: any) => {
+              const qty = parseFloat(row.quantity ?? "0");
+              const lineTotal = parseFloat(row.total ?? "0");
               const disc = parseFloat(row.discountPercent ?? "0");
               const discLabel = row.discountType === "fixed"
                 ? disc > 0 ? `−${formatCurrency(disc)}` : "—"
                 : disc > 0 ? `${disc}%` : "—";
+              const unitCost = qty > 0 ? lineTotal / qty : 0;
               return (
                 <TableRow key={`${row.billId}`}>
                   <TableCell className="font-mono text-sm">{row.billNumber}</TableCell>
@@ -946,6 +950,7 @@ function CostHistoryTab({ productId }: { productId?: string }) {
                   <TableCell className="text-right tabular-nums text-sm">{parseFloat(row.quantity ?? "0").toLocaleString()}</TableCell>
                   <TableCell className="text-right tabular-nums text-sm">{formatCurrency(row.unitPrice)}</TableCell>
                   <TableCell className="text-right tabular-nums text-sm text-muted-foreground">{discLabel}</TableCell>
+                  <TableCell className="text-right tabular-nums text-sm font-semibold">{formatCurrency(unitCost)}</TableCell>
                   <TableCell className="text-right tabular-nums text-sm font-medium">{formatCurrency(row.total)}</TableCell>
                 </TableRow>
               );

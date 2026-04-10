@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { products, categories, suppliers, productVariants } from "@/lib/db/schema";
+import { products, categories, suppliers, productVariants, productProperties } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { apiError, apiResponse } from "@/lib/utils";
 import { asc, desc, eq, ilike, and, or, sql } from "drizzle-orm";
@@ -23,6 +23,7 @@ const createSchema = z.object({
   width: z.coerce.number().optional().nullable(),
   height: z.coerce.number().optional().nullable(),
   material: z.string().optional().nullable(),
+  properties: z.array(z.object({ key: z.string(), value: z.string() })).optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -112,7 +113,7 @@ export async function POST(req: NextRequest) {
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) return apiError(parsed.error.message, 400);
 
-  const { basePrice, sellingPrice, discountPercent, width, height, ...rest } = parsed.data;
+  const { basePrice, sellingPrice, discountPercent, width, height, properties, ...rest } = parsed.data;
   const [row] = await db.insert(products).values({
     ...rest,
     basePrice: basePrice != null ? String(basePrice) : null,
@@ -121,5 +122,12 @@ export async function POST(req: NextRequest) {
     width: width != null ? String(width) : null,
     height: height != null ? String(height) : null,
   }).returning();
+
+  if (properties && properties.length > 0) {
+    await db.insert(productProperties).values(
+      properties.map((p, i) => ({ productId: row.id, key: p.key, value: p.value, sortOrder: i }))
+    );
+  }
+
   return apiResponse(row, 201);
 }
