@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { suppliers, bills, products } from "@/lib/db/schema";
+import { suppliers } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { apiError, apiResponse } from "@/lib/utils";
-import { asc, count, sum, eq, ilike, sql } from "drizzle-orm";
+import { asc, eq, ilike, sql } from "drizzle-orm";
 import { z } from "zod";
 
 const createSchema = z.object({
@@ -37,14 +37,11 @@ export async function GET(req: NextRequest) {
         address: suppliers.address,
         notes: suppliers.notes,
         createdAt: suppliers.createdAt,
-        productCount: count(products.id),
-        totalSpend: sum(bills.totalAmount),
+        productCount: sql<number>`(SELECT COUNT(*)::int FROM products WHERE products.supplier_id = ${suppliers.id})`,
+        totalSpend: sql<string>`(SELECT COALESCE(SUM(total_amount::numeric), 0) FROM bills WHERE bills.supplier_id = ${suppliers.id})`,
       })
       .from(suppliers)
-      .leftJoin(products, eq(products.supplierId, suppliers.id))
-      .leftJoin(bills, eq(bills.supplierId, suppliers.id))
       .where(whereClause)
-      .groupBy(suppliers.id)
       .orderBy(asc(suppliers.name))
       .limit(limit)
       .offset(offset),

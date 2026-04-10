@@ -23,17 +23,14 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
   const [supplier] = await db.select().from(suppliers).where(eq(suppliers.id, id));
   if (!supplier) return apiError("Not found", 404);
 
-  // Stats
+  // Stats — use subqueries to avoid cartesian product from joining both products and bills
   const [stats] = await db
     .select({
-      productsSourced: count(products.id),
-      totalInvested: sum(bills.totalAmount),
+      productsSourced: sql<number>`(SELECT COUNT(*)::int FROM products WHERE products.supplier_id = ${id})`,
+      totalInvested: sql<string>`(SELECT COALESCE(SUM(total_amount::numeric), 0) FROM bills WHERE bills.supplier_id = ${id})`,
     })
     .from(suppliers)
-    .leftJoin(products, eq(products.supplierId, id))
-    .leftJoin(bills, eq(bills.supplierId, id))
-    .where(eq(suppliers.id, id))
-    .groupBy(suppliers.id);
+    .where(eq(suppliers.id, id));
 
   // Bills for this supplier
   const supplierBills = await db
