@@ -23,11 +23,21 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
   const [supplier] = await db.select().from(suppliers).where(eq(suppliers.id, id));
   if (!supplier) return apiError("Not found", 404);
 
-  // Stats — use subqueries to avoid cartesian product from joining both products and bills
+  // Stats — count distinct products from bill line items, sum bills directly
   const [stats] = await db
     .select({
-      productsSourced: sql<number>`(SELECT COUNT(*)::int FROM products WHERE products.supplier_id = ${id})`,
-      totalInvested: sql<string>`(SELECT COALESCE(SUM(total_amount::numeric), 0) FROM bills WHERE bills.supplier_id = ${id})`,
+      productsSourced: sql<number>`(
+        SELECT COUNT(DISTINCT bli.product_id)::int
+        FROM bill_line_items bli
+        JOIN bills b ON b.id = bli.bill_id
+        WHERE b.supplier_id = ${id}
+          AND bli.product_id IS NOT NULL
+      )`,
+      totalInvested: sql<string>`(
+        SELECT COALESCE(SUM(b.total_amount::numeric), 0)::text
+        FROM bills b
+        WHERE b.supplier_id = ${id}
+      )`,
     })
     .from(suppliers)
     .where(eq(suppliers.id, id));

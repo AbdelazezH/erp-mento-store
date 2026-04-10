@@ -37,8 +37,18 @@ export async function GET(req: NextRequest) {
         address: suppliers.address,
         notes: suppliers.notes,
         createdAt: suppliers.createdAt,
-        productCount: sql<number>`(SELECT COUNT(*)::int FROM products WHERE products.supplier_id = ${suppliers.id})`,
-        totalSpend: sql<string>`(SELECT COALESCE(SUM(total_amount::numeric), 0) FROM bills WHERE bills.supplier_id = ${suppliers.id})`,
+        productCount: sql<number>`(
+          SELECT COUNT(DISTINCT bli.product_id)::int
+          FROM bill_line_items bli
+          JOIN bills b ON b.id = bli.bill_id
+          WHERE b.supplier_id = ${suppliers.id}
+            AND bli.product_id IS NOT NULL
+        )`,
+        totalSpend: sql<string>`(
+          SELECT COALESCE(SUM(b.total_amount::numeric), 0)::text
+          FROM bills b
+          WHERE b.supplier_id = ${suppliers.id}
+        )`,
       })
       .from(suppliers)
       .where(whereClause)
