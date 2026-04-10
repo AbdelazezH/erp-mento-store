@@ -51,6 +51,8 @@ import {
   X,
   CalendarIcon,
   ChevronDown,
+  ChevronUp,
+  ChevronsUpDown,
   User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -155,6 +157,7 @@ export default function InvoicesPage() {
   const [dateTo, setDateTo] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [dateSortDir, setDateSortDir] = useState<"asc" | "desc">("desc");
 
   // Fetch all bills (server-side search only; type/date filtered client-side for pill counts)
   const { data: rawBills = [], isLoading } = useBills({
@@ -181,8 +184,14 @@ export default function InvoicesPage() {
       list = list.filter((b) => b.issueDate && new Date(b.issueDate) <= to);
     }
 
+    list = [...list].sort((a, b) => {
+      const aTime = a.issueDate ? new Date(a.issueDate).getTime() : 0;
+      const bTime = b.issueDate ? new Date(b.issueDate).getTime() : 0;
+      return dateSortDir === "desc" ? bTime - aTime : aTime - bTime;
+    });
+
     return list;
-  }, [rawBills, typeFilter, dateFrom, dateTo]);
+  }, [rawBills, typeFilter, dateFrom, dateTo, dateSortDir]);
 
   // Counts per type (from rawBills, ignoring type filter, respecting date filter)
   const typeCounts = useMemo(() => {
@@ -355,7 +364,19 @@ export default function InvoicesPage() {
                 <TableHead className="font-semibold">Invoice #</TableHead>
                 <TableHead className="font-semibold">Type</TableHead>
                 <TableHead className="font-semibold">Paid By</TableHead>
-                <TableHead className="font-semibold">Dates</TableHead>
+                <TableHead className="font-semibold">
+                  <button
+                    onClick={() => setDateSortDir((d) => d === "desc" ? "asc" : "desc")}
+                    className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+                  >
+                    Dates
+                    {dateSortDir === "desc" ? (
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    ) : (
+                      <ChevronUp className="h-3.5 w-3.5" />
+                    )}
+                  </button>
+                </TableHead>
                 <TableHead className="font-semibold">Status</TableHead>
                 <TableHead className="text-right font-semibold">Amount</TableHead>
                 <TableHead className="w-20"></TableHead>
