@@ -854,7 +854,7 @@ export function InvoiceForm({
                   <TableHead>Product / Description</TableHead>
                   <TableHead className="w-24">Qty</TableHead>
                   <TableHead className="w-28">Unit Price</TableHead>
-                  <TableHead className="w-28">Discount</TableHead>
+                  <TableHead className="w-36">Discount</TableHead>
                   <TableHead className="w-28 text-right">Total</TableHead>
                   <TableHead className="w-16"></TableHead>
                 </TableRow>
@@ -963,7 +963,7 @@ export function InvoiceForm({
                             min="0"
                             max="100"
                             {...register(`items.${idx}.discountPercent`)}
-                            className="h-8 text-sm"
+                            className="h-8 text-sm w-24"
                           />
                         </div>
                       </TableCell>
