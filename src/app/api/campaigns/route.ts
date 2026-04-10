@@ -8,19 +8,19 @@ import { z } from "zod";
 
 const campaignProductSchema = z.object({
   productId: z.string().uuid(),
-  originalPrice: z.string().optional().nullable(),
-  campaignPrice: z.string().optional().nullable(),
-  cogs: z.string().optional().nullable(),
-  expectedUnits: z.number().int().default(0),
+  originalPrice: z.union([z.string(), z.number()]).transform(String).optional().nullable(),
+  campaignPrice: z.union([z.string(), z.number()]).transform(String).optional().nullable(),
+  cogs: z.union([z.string(), z.number()]).transform(String).optional().nullable(),
+  expectedUnits: z.coerce.number().int().default(0),
 });
 
 const createSchema = z.object({
   name: z.string().min(1),
   startDate: z.string().optional().nullable(),
   endDate: z.string().optional().nullable(),
-  advertisingBudget: z.string().default("0"),
-  shippingCost: z.string().default("0"),
-  otherCosts: z.string().default("0"),
+  advertisingBudget: z.union([z.string(), z.number()]).transform(String).default("0"),
+  shippingCost: z.union([z.string(), z.number()]).transform(String).default("0"),
+  otherCosts: z.union([z.string(), z.number()]).transform(String).default("0"),
   products: z.array(campaignProductSchema).default([]),
 });
 
