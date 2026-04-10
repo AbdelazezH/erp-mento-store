@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { bills, billLineItems, billPayers, suppliers, products } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { apiError, apiResponse, generateBillNumber } from "@/lib/utils";
-import { desc, eq, ilike, and, sum, sql } from "drizzle-orm";
+import { desc, asc, eq, ilike, and, gte, lte, sum, sql, count as drizzleCount, or } from "drizzle-orm";
 import { z } from "zod";
 
 const lineItemSchema = z.object({
@@ -64,37 +64,82 @@ export async function GET(req: NextRequest) {
   const search = searchParams.get("search") ?? "";
   const status = searchParams.get("status");
   const billType = searchParams.get("billType");
+  const dateFrom = searchParams.get("dateFrom");
+  const dateTo = searchParams.get("dateTo");
+  const payer = searchParams.get("payer");
+  const sortDir = searchParams.get("sortDir") ?? "desc";
+  const limit = Math.min(parseInt(searchParams.get("limit") ?? "50", 10) || 50, 200);
+  const offset = parseInt(searchParams.get("offset") ?? "0", 10) || 0;
 
-  const conditions = [];
-  if (search) conditions.push(ilike(bills.name, `%${search}%`));
-  if (status) conditions.push(eq(bills.status, status as "pending" | "overdue" | "paid" | "cancelled"));
-  if (billType) conditions.push(eq(bills.billType, billType as "supplier_bill" | "other_expense"));
+  // Base conditions (shared between data query and count query, excluding billType)
+  const baseConditions: ReturnType<typeof eq>[] = [];
+  if (search) baseConditions.push(ilike(bills.name, `%${search}%`));
+  if (status) baseConditions.push(eq(bills.status, status as "pending" | "overdue" | "paid" | "cancelled"));
+  if (dateFrom) baseConditions.push(gte(bills.issueDate, dateFrom));
+  if (dateTo) baseConditions.push(lte(bills.issueDate, dateTo));
+  if (payer) {
+    baseConditions.push(
+      or(
+        eq(bills.paidBy, payer),
+        sql`EXISTS (SELECT 1 FROM bill_payers WHERE bill_id = ${bills.id} AND person_name = ${payer})`
+      )! as any
+    );
+  }
 
-  const rows = await db
-    .select({
-      id: bills.id,
-      billNumber: bills.billNumber,
-      name: bills.name,
-      supplierId: bills.supplierId,
-      issueDate: bills.issueDate,
-      dueDate: bills.dueDate,
-      status: bills.status,
-      totalAmount: bills.totalAmount,
-      billType: bills.billType,
-      paidBy: bills.paidBy,
-      receiptImageUrl: bills.receiptImageUrl,
-      notes: bills.notes,
-      createdAt: bills.createdAt,
-      supplierName: suppliers.name,
-      payerCount: sql<number>`(SELECT COUNT(*)::int FROM bill_payers WHERE bill_id = ${bills.id})`,
-      firstPayerName: sql<string | null>`(SELECT person_name FROM bill_payers WHERE bill_id = ${bills.id} ORDER BY id LIMIT 1)`,
-    })
-    .from(bills)
-    .leftJoin(suppliers, eq(bills.supplierId, suppliers.id))
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(desc(bills.createdAt));
+  // Data conditions (includes billType)
+  const dataConditions = [...baseConditions];
+  if (billType) dataConditions.push(eq(bills.billType, billType as any));
 
-  return apiResponse(rows);
+  const whereClause = dataConditions.length > 0 ? and(...dataConditions) : undefined;
+  const orderClause = sortDir === "asc" ? asc(bills.issueDate) : desc(bills.issueDate);
+
+  // Run data query + type counts query in parallel
+  const [rows, typeCountRows] = await Promise.all([
+    db
+      .select({
+        id: bills.id,
+        billNumber: bills.billNumber,
+        name: bills.name,
+        supplierId: bills.supplierId,
+        issueDate: bills.issueDate,
+        dueDate: bills.dueDate,
+        status: bills.status,
+        totalAmount: bills.totalAmount,
+        billType: bills.billType,
+        paidBy: bills.paidBy,
+        receiptImageUrl: bills.receiptImageUrl,
+        notes: bills.notes,
+        createdAt: bills.createdAt,
+        supplierName: suppliers.name,
+        payerCount: sql<number>`(SELECT COUNT(*)::int FROM bill_payers WHERE bill_id = ${bills.id})`,
+        firstPayerName: sql<string | null>`(SELECT person_name FROM bill_payers WHERE bill_id = ${bills.id} ORDER BY id LIMIT 1)`,
+      })
+      .from(bills)
+      .leftJoin(suppliers, eq(bills.supplierId, suppliers.id))
+      .where(whereClause)
+      .orderBy(orderClause)
+      .limit(limit)
+      .offset(offset),
+
+    // Count per type — uses base conditions only (no billType, no limit/offset)
+    db
+      .select({
+        billType: bills.billType,
+        count: sql<number>`COUNT(*)::int`,
+      })
+      .from(bills)
+      .where(baseConditions.length > 0 ? and(...baseConditions) : undefined)
+      .groupBy(bills.billType),
+  ]);
+
+  const typeCounts: Record<string, number> = {};
+  let total = 0;
+  for (const row of typeCountRows) {
+    typeCounts[row.billType] = row.count;
+    total += row.count;
+  }
+
+  return apiResponse({ data: rows, total, typeCounts });
 }
 
 export async function POST(req: NextRequest) {

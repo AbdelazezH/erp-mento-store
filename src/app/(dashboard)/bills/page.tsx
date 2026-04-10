@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
-  useBills,
+  useInfiniteBills,
   useBillStats,
   useDeleteBill,
   useUpdateBill,
@@ -202,83 +202,52 @@ export default function InvoicesPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [dateSortDir, setDateSortDir] = useState<"asc" | "desc">("desc");
 
-  // Fetch all bills (server-side search only; type/date filtered client-side for pill counts)
-  const { data: rawBills = [], isLoading } = useBills({
+  // Server-side paginated bills
+  const {
+    data: billsData,
+    isLoading,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = useInfiniteBills({
     search: search || undefined,
+    billType: typeFilter !== "all" ? typeFilter : undefined,
+    dateFrom: dateFrom || undefined,
+    dateTo: dateTo || undefined,
+    payer: payerFilter !== "all" ? payerFilter : undefined,
+    sortDir: dateSortDir,
   });
   const { data: stats = [], isLoading: statsLoading } = useBillStats();
   const deleteBill = useDeleteBill();
 
-  // Client-side filtering
-  const bills = useMemo(() => {
-    let list = rawBills as any[];
+  // Flatten all loaded pages into a single list
+  const bills = useMemo(
+    () => billsData?.pages.flatMap((p) => p.data) ?? [],
+    [billsData]
+  );
 
-    if (typeFilter !== "all") {
-      list = list.filter((b) => b.billType === typeFilter);
-    }
-
-    if (dateFrom) {
-      const from = new Date(dateFrom);
-      list = list.filter((b) => b.issueDate && new Date(b.issueDate) >= from);
-    }
-    if (dateTo) {
-      const to = new Date(dateTo);
-      to.setHours(23, 59, 59, 999);
-      list = list.filter((b) => b.issueDate && new Date(b.issueDate) <= to);
-    }
-
-    if (payerFilter !== "all") {
-      list = list.filter((b) =>
-        b.paidBy === payerFilter || b.firstPayerName === payerFilter
-      );
-    }
-
-    list = [...list].sort((a, b) => {
-      const aTime = a.issueDate ? new Date(a.issueDate).getTime() : 0;
-      const bTime = b.issueDate ? new Date(b.issueDate).getTime() : 0;
-      return dateSortDir === "desc" ? bTime - aTime : aTime - bTime;
-    });
-
-    return list;
-  }, [rawBills, typeFilter, dateFrom, dateTo, payerFilter, dateSortDir]);
-
-  // Counts per type (from rawBills, ignoring type filter, respecting date filter)
+  // Type counts from server (first page metadata — same across all pages)
   const typeCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: 0 };
-    for (const b of rawBills as any[]) {
-      counts.all = (counts.all ?? 0) + 1;
-      counts[b.billType] = (counts[b.billType] ?? 0) + 1;
-    }
-    return counts;
-  }, [rawBills]);
-
-  const PAGE_SIZE = 25;
-  const [displayCount, setDisplayCount] = useState(PAGE_SIZE);
-  const sentinelRef = useRef<HTMLDivElement>(null);
-
-  // Reset displayCount whenever any filter changes
-  useEffect(() => {
-    setDisplayCount(PAGE_SIZE);
-  }, [search, typeFilter, datePreset, dateFrom, dateTo, payerFilter, dateSortDir]);
+    const tc = billsData?.pages[0]?.typeCounts ?? {};
+    const all = Object.values(tc).reduce((s: number, n: number) => s + n, 0);
+    return { all, ...tc } as Record<string, number>;
+  }, [billsData]);
 
   // Infinite scroll via IntersectionObserver
-  const loadMore = useCallback(() => {
-    setDisplayCount((c) => c + PAGE_SIZE);
-  }, []);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const el = sentinelRef.current;
-    if (!el) return;
+    if (!el || !hasNextPage) return;
     const observer = new IntersectionObserver(
-      (entries) => { if (entries[0].isIntersecting) loadMore(); },
-      { rootMargin: "200px" }
+      (entries) => {
+        if (entries[0].isIntersecting && !isFetchingNextPage) fetchNextPage();
+      },
+      { rootMargin: "300px" }
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [loadMore]);
-
-  const displayedBills = bills.slice(0, displayCount);
-  const hasMore = displayCount < bills.length;
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const handleDelete = async () => {
     if (!deleteId) return;
@@ -546,7 +515,7 @@ export default function InvoicesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {displayedBills.map((bill) => (
+              {bills.map((bill) => (
                 <TableRow key={bill.id} className="group">
                   {/* Invoice # + name */}
                   <TableCell>
@@ -667,7 +636,7 @@ export default function InvoicesPage() {
           </Table>
 
           {/* Skeleton rows while loading more */}
-          {hasMore && (
+          {isFetchingNextPage && (
             <Table>
               <TableBody>
                 {Array.from({ length: 3 }).map((_, i) => (
@@ -686,8 +655,8 @@ export default function InvoicesPage() {
           )}
         </div>
 
-        {/* Invisible sentinel — triggers loadMore when it enters the viewport */}
-        <div ref={sentinelRef} className="h-1" />
+        {/* Invisible sentinel — triggers fetchNextPage when it enters the viewport */}
+        {hasNextPage && <div ref={sentinelRef} className="h-1" />}
         </>
       )}
 

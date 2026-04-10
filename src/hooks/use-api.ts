@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 // ─── Generic fetch helpers ────────────────────────────────────────────────────
@@ -230,6 +230,38 @@ export function useBills(params?: { search?: string; status?: string; billType?:
   return useQuery({
     queryKey: ["bills", params],
     queryFn: () => apiFetch<any[]>(`/api/bills${query ? `?${query}` : ""}`),
+  });
+}
+
+export function useInfiniteBills(params?: {
+  search?: string;
+  billType?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  payer?: string;
+  sortDir?: string;
+}) {
+  return useInfiniteQuery({
+    queryKey: ["bills", "infinite", params],
+    queryFn: ({ pageParam = 0 }) => {
+      const sp = new URLSearchParams();
+      sp.set("limit", "50");
+      sp.set("offset", String(pageParam));
+      if (params?.search) sp.set("search", params.search);
+      if (params?.billType) sp.set("billType", params.billType);
+      if (params?.dateFrom) sp.set("dateFrom", params.dateFrom);
+      if (params?.dateTo) sp.set("dateTo", params.dateTo);
+      if (params?.payer) sp.set("payer", params.payer);
+      if (params?.sortDir) sp.set("sortDir", params.sortDir);
+      return apiFetch<{ data: any[]; total: number; typeCounts: Record<string, number> }>(
+        `/api/bills?${sp.toString()}`
+      );
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((sum, p) => sum + p.data.length, 0);
+      return loaded < lastPage.total ? loaded : undefined;
+    },
   });
 }
 
