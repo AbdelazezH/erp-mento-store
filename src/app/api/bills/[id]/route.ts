@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { bills, billLineItems, suppliers, products, productVariants } from "@/lib/db/schema";
+import { bills, billLineItems, billPayers, suppliers, products, productVariants } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { apiError, apiResponse } from "@/lib/utils";
 import { eq } from "drizzle-orm";
@@ -17,6 +17,11 @@ const lineItemSchema = z.object({
   total: z.string(),
 });
 
+const payerSchema = z.object({
+  personName: z.string().min(1),
+  amount: z.string(),
+});
+
 const updateSchema = z.object({
   name: z.string().min(1).optional(),
   supplierId: z.string().uuid().optional().nullable(),
@@ -28,6 +33,7 @@ const updateSchema = z.object({
   receiptImageUrl: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
   lineItems: z.array(lineItemSchema).optional(),
+  payers: z.array(payerSchema).optional(),
 });
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -76,7 +82,16 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
     .leftJoin(productVariants, eq(billLineItems.variantId, productVariants.id))
     .where(eq(billLineItems.billId, id));
 
-  return apiResponse({ ...bill, lineItems });
+  const payers = await db
+    .select({
+      id: billPayers.id,
+      personName: billPayers.personName,
+      amount: billPayers.amount,
+    })
+    .from(billPayers)
+    .where(eq(billPayers.billId, id));
+
+  return apiResponse({ ...bill, lineItems, payers });
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -88,7 +103,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) return apiError(parsed.error.message, 400);
 
-  const { lineItems, issueDate, dueDate, ...billData } = parsed.data;
+  const { lineItems, payers, issueDate, dueDate, ...billData } = parsed.data;
 
   const updateData: Record<string, unknown> = { ...billData };
   if (issueDate) updateData.issueDate = new Date(issueDate);
@@ -98,11 +113,23 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const total = lineItems.reduce((sum, item) => sum + parseFloat(item.total), 0);
     updateData.totalAmount = total.toFixed(2);
 
-    // Replace all line items
     await db.delete(billLineItems).where(eq(billLineItems.billId, id));
     if (lineItems.length > 0) {
       await db.insert(billLineItems).values(
         lineItems.map(({ id: _, ...item }) => ({ ...item, billId: id }))
+      );
+    }
+  }
+
+  if (payers !== undefined) {
+    await db.delete(billPayers).where(eq(billPayers.billId, id));
+    if (payers.length > 0) {
+      await db.insert(billPayers).values(
+        payers.map((p) => ({
+          billId: id,
+          personName: p.personName,
+          amount: p.amount,
+        }))
       );
     }
   }

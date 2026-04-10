@@ -225,6 +225,13 @@ export function useBill(id: string) {
   });
 }
 
+export function useBillStats() {
+  return useQuery({
+    queryKey: ["bills", "stats"],
+    queryFn: () => apiFetch<{ personName: string; total: string; count: number }[]>("/api/bills/stats"),
+  });
+}
+
 export function useCreateBill() {
   const qc = useQueryClient();
   return useMutation({

@@ -214,6 +214,15 @@ export const billLineItems = pgTable("bill_line_items", {
   total: numeric("total", { precision: 12, scale: 2 }).notNull(),
 });
 
+export const billPayers = pgTable("bill_payers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  billId: uuid("bill_id")
+    .notNull()
+    .references(() => bills.id, { onDelete: "cascade" }),
+  personName: text("person_name").notNull(),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+});
+
 // ─── Customers ────────────────────────────────────────────────────────────────
 
 export const customers = pgTable("customers", {
@@ -348,6 +357,11 @@ export const billsRelations = relations(bills, ({ one, many }) => ({
     references: [suppliers.id],
   }),
   lineItems: many(billLineItems),
+  payers: many(billPayers),
+}));
+
+export const billPayersRelations = relations(billPayers, ({ one }) => ({
+  bill: one(bills, { fields: [billPayers.billId], references: [bills.id] }),
 }));
 
 export const billLineItemsRelations = relations(billLineItems, ({ one }) => ({
@@ -421,6 +435,7 @@ export type ProductVariant = typeof productVariants.$inferSelect;
 export type ProductProperty = typeof productProperties.$inferSelect;
 export type Bill = typeof bills.$inferSelect;
 export type BillLineItem = typeof billLineItems.$inferSelect;
+export type BillPayer = typeof billPayers.$inferSelect;
 export type Customer = typeof customers.$inferSelect;
 export type Order = typeof orders.$inferSelect;
 export type OrderLineItem = typeof orderLineItems.$inferSelect;

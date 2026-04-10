@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef } from "react";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm, useFieldArray, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
@@ -320,9 +320,11 @@ function ReceiptDropZone({
 export function InvoiceForm({
   billId,
   defaultValues,
+  initialPayers,
 }: {
   billId?: string;
   defaultValues?: Partial<InvoiceFormValues>;
+  initialPayers?: { personName: string; amount: string }[];
 }) {
   const router = useRouter();
   const createBill = useCreateBill();
@@ -351,10 +353,22 @@ export function InvoiceForm({
 
   const { fields, append, remove } = useFieldArray({ control, name: "items" });
 
-  const watchedItems = watch("items");
+  const watchedItems = useWatch({ control, name: "items" });
   const watchedBillType = watch("billType");
   const watchedReceiptUrl = watch("receiptImageUrl");
   const isSupplierInvoice = watchedBillType === "supplier_bill";
+
+  // Split payment state
+  const [isSplit, setIsSplit] = useState(() => (initialPayers?.length ?? 0) > 1);
+  const [payers, setPayers] = useState<{ personName: string; amount: string }[]>(
+    () =>
+      initialPayers && initialPayers.length > 0
+        ? initialPayers
+        : [{ personName: "", amount: "" }]
+  );
+
+  // Bulk discount
+  const [bulkDiscount, setBulkDiscount] = useState("");
 
   // Totals
   const { subTotal, totalDiscount, grandTotal } = useMemo(() => {
@@ -372,6 +386,20 @@ export function InvoiceForm({
   }, [watchedItems]);
 
   const onSubmit = async (data: InvoiceFormValues) => {
+    // Split validation
+    if (isSplit) {
+      const payerTotal = payers.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+      if (Math.abs(payerTotal - grandTotal) > 0.01) {
+        alert(`Split amounts (${formatCurrency(payerTotal)}) must equal the invoice total (${formatCurrency(grandTotal)}).`);
+        return;
+      }
+      const hasEmpty = payers.some((p) => !p.personName || !p.amount);
+      if (hasEmpty) {
+        alert("All payer rows must have a person and an amount.");
+        return;
+      }
+    }
+
     const lineItems = data.items.map((item) => {
       const qty = Number(item.quantity);
       const unit = Number(item.unitPrice);
@@ -387,17 +415,24 @@ export function InvoiceForm({
       };
     });
 
+    const payersPayload = isSplit
+      ? payers.map((p) => ({ personName: p.personName, amount: p.amount }))
+      : data.paidBy
+      ? [{ personName: data.paidBy, amount: grandTotal.toFixed(2) }]
+      : [];
+
     const payload = {
       name: data.name || undefined,
       billType: data.billType,
       supplierId: isSupplierInvoice ? (data.supplierId || null) : null,
-      paidBy: data.paidBy || null,
+      paidBy: isSplit ? null : (data.paidBy || null),
       status: data.status,
       issueDate: data.issueDate,
       dueDate: data.dueDate || null,
       notes: data.notes || null,
       receiptImageUrl: data.receiptImageUrl || null,
       lineItems,
+      payers: payersPayload,
     };
 
     if (billId) {
@@ -507,25 +542,111 @@ export function InvoiceForm({
                 </Label>
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs text-muted-foreground">Split</span>
-                  <Switch disabled />
+                  <Switch
+                    checked={isSplit}
+                    onCheckedChange={(checked) => {
+                      setIsSplit(checked);
+                      if (checked) {
+                        setPayers([{ personName: "", amount: "" }, { personName: "", amount: "" }]);
+                      } else {
+                        setPayers([{ personName: "", amount: "" }]);
+                      }
+                    }}
+                  />
                 </div>
               </div>
-              <Select
-                defaultValue={defaultValues?.paidBy ?? ""}
-                onValueChange={(v) => setValue("paidBy", v === "__none__" ? null : v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select person..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">— None —</SelectItem>
-                  {PAID_BY_OPTIONS.map((name) => (
-                    <SelectItem key={name} value={name}>
-                      {name}
-                    </SelectItem>
+
+              {!isSplit ? (
+                <Select
+                  defaultValue={defaultValues?.paidBy ?? ""}
+                  onValueChange={(v) => setValue("paidBy", v === "__none__" ? null : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select person..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— None —</SelectItem>
+                    {PAID_BY_OPTIONS.map((name) => (
+                      <SelectItem key={name} value={name}>
+                        {name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="space-y-2">
+                  {payers.map((payer, pi) => (
+                    <div key={pi} className="flex items-center gap-2">
+                      <Select
+                        value={payer.personName}
+                        onValueChange={(v) =>
+                          setPayers((prev) =>
+                            prev.map((p, i) => (i === pi ? { ...p, personName: v } : p))
+                          )
+                        }
+                      >
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="Person..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PAID_BY_OPTIONS.map((name) => (
+                            <SelectItem key={name} value={name}>
+                              {name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        value={payer.amount}
+                        onChange={(e) =>
+                          setPayers((prev) =>
+                            prev.map((p, i) => (i === pi ? { ...p, amount: e.target.value } : p))
+                          )
+                        }
+                        className="w-28 h-9 text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          payers.length > 2 &&
+                          setPayers((prev) => prev.filter((_, i) => i !== pi))
+                        }
+                        disabled={payers.length <= 2}
+                        className="text-muted-foreground hover:text-destructive disabled:opacity-30 transition-colors"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
                   ))}
-                </SelectContent>
-              </Select>
+
+                  <button
+                    type="button"
+                    onClick={() => setPayers((prev) => [...prev, { personName: "", amount: "" }])}
+                    className="w-full rounded-md border border-dashed border-muted-foreground/30 py-1.5 text-xs text-muted-foreground hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-1"
+                  >
+                    <Plus className="h-3 w-3" /> Add Payer
+                  </button>
+
+                  {/* Balance indicator */}
+                  {(() => {
+                    const paid = payers.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+                    const balanced = Math.abs(paid - grandTotal) < 0.01;
+                    return (
+                      <div className={cn(
+                        "rounded-md px-3 py-2 text-xs flex items-center justify-between",
+                        balanced ? "bg-green-50 text-green-700 border border-green-200" : "bg-orange-50 text-orange-700 border border-orange-200"
+                      )}>
+                        <span className="font-mono">{formatCurrency(paid)} / {formatCurrency(grandTotal)} EGP</span>
+                        {balanced && <span>✓</span>}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -595,8 +716,8 @@ export function InvoiceForm({
       {/* Line Items Card */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
               <CardTitle>Line Items</CardTitle>
               {isSupplierInvoice && (
                 <p className="text-sm text-muted-foreground mt-0.5">
@@ -604,24 +725,43 @@ export function InvoiceForm({
                 </p>
               )}
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                append({
-                  mode: "text",
-                  productId: null,
-                  description: "",
-                  quantity: 1,
-                  unitPrice: 0,
-                  discountPercent: 0,
-                })
-              }
-            >
-              <Plus className="mr-1.5 h-3.5 w-3.5" />
-              Add Line
-            </Button>
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-1.5">
+                <Label className="text-xs text-muted-foreground whitespace-nowrap">Bulk Disc %</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.01}
+                  placeholder="0"
+                  value={bulkDiscount}
+                  onChange={(e) => {
+                    setBulkDiscount(e.target.value);
+                    const v = parseFloat(e.target.value) || 0;
+                    fields.forEach((_, i) => setValue(`items.${i}.discountPercent`, v));
+                  }}
+                  className="w-20 h-8 text-sm"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  append({
+                    mode: "text",
+                    productId: null,
+                    description: "",
+                    quantity: 1,
+                    unitPrice: 0,
+                    discountPercent: 0,
+                  })
+                }
+              >
+                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                Add Line
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>

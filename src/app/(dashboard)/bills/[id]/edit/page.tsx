@@ -57,5 +57,11 @@ export default function EditInvoicePage({ params }: { params: Promise<{ id: stri
         : [{ mode: "text", productId: null, description: "", quantity: 1, unitPrice: 0, discountPercent: 0 }],
   };
 
-  return <InvoiceForm billId={id} defaultValues={defaultValues} />;
+  const initialPayers = b.payers?.length > 0
+    ? b.payers.map((p: any) => ({ personName: p.personName, amount: String(p.amount) }))
+    : b.paidBy
+    ? [{ personName: b.paidBy, amount: String(b.totalAmount) }]
+    : [];
+
+  return <InvoiceForm billId={id} defaultValues={defaultValues} initialPayers={initialPayers} />;
 }

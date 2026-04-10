@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { bills, billLineItems, suppliers } from "@/lib/db/schema";
+import { bills, billLineItems, billPayers, suppliers } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { apiError, apiResponse, generateBillNumber } from "@/lib/utils";
-import { desc, eq, ilike, and, sql, sum, count } from "drizzle-orm";
+import { desc, eq, ilike, and } from "drizzle-orm";
 import { z } from "zod";
 
 const lineItemSchema = z.object({
@@ -14,6 +14,11 @@ const lineItemSchema = z.object({
   unitPrice: z.string(),
   discountPercent: z.string().default("0"),
   total: z.string(),
+});
+
+const payerSchema = z.object({
+  personName: z.string().min(1),
+  amount: z.string(),
 });
 
 const createSchema = z.object({
@@ -27,6 +32,7 @@ const createSchema = z.object({
   receiptImageUrl: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
   lineItems: z.array(lineItemSchema).default([]),
+  payers: z.array(payerSchema).optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -76,7 +82,7 @@ export async function POST(req: NextRequest) {
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) return apiError(parsed.error.message, 400);
 
-  const { lineItems, ...billData } = parsed.data;
+  const { lineItems, payers, ...billData } = parsed.data;
 
   // Calculate total from line items
   const total = lineItems.reduce((sum, item) => sum + parseFloat(item.total), 0);
@@ -97,6 +103,16 @@ export async function POST(req: NextRequest) {
       lineItems.map((item) => ({
         ...item,
         billId: bill.id,
+      }))
+    );
+  }
+
+  if (payers && payers.length > 0) {
+    await db.insert(billPayers).values(
+      payers.map((p) => ({
+        billId: bill.id,
+        personName: p.personName,
+        amount: p.amount,
       }))
     );
   }

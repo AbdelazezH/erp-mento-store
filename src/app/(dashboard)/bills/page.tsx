@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   useBills,
+  useBillStats,
   useDeleteBill,
 } from "@/hooks/use-api";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -35,6 +36,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+} from "@/components/ui/dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -48,6 +53,7 @@ import {
   Pencil,
   Trash2,
   Receipt,
+  ImageIcon,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -63,6 +69,15 @@ const BILL_TYPE_LABELS: Record<string, string> = {
   website_invoice: "Website Invoice",
   other_expense: "Other Expense",
 };
+
+// Colors for per-person stat cards — cycling by index
+const CARD_PALETTES = [
+  { bg: "bg-blue-50", border: "border-blue-100", name: "text-blue-600", amount: "text-blue-700" },
+  { bg: "bg-purple-50", border: "border-purple-100", name: "text-purple-600", amount: "text-purple-700" },
+  { bg: "bg-green-50", border: "border-green-100", name: "text-green-600", amount: "text-green-700" },
+  { bg: "bg-yellow-50", border: "border-yellow-100", name: "text-yellow-600", amount: "text-yellow-700" },
+  { bg: "bg-red-50", border: "border-red-100", name: "text-red-500", amount: "text-red-600" },
+];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -87,12 +102,15 @@ export default function InvoicesPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const { data: bills = [], isLoading } = useBills({
     search: search || undefined,
     status: statusFilter !== "all" ? statusFilter : undefined,
     billType: typeFilter !== "all" ? typeFilter : undefined,
   });
+
+  const { data: stats = [], isLoading: statsLoading } = useBillStats();
 
   const deleteBill = useDeleteBill();
 
@@ -107,14 +125,44 @@ export default function InvoicesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Invoices</h1>
-          <p className="text-sm text-muted-foreground">Track supplier and operational invoices</p>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <Receipt className="h-6 w-6" />
+            Invoices &amp; Expenses
+          </h1>
+          <p className="text-sm text-muted-foreground">Track incoming invoices, bills, and payments.</p>
         </div>
         <Button onClick={() => router.push("/bills/new")}>
           <Plus className="mr-2 h-4 w-4" />
           New Invoice
         </Button>
       </div>
+
+      {/* Per-person summary cards */}
+      {statsLoading ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="h-24 animate-pulse rounded-xl bg-muted" />
+          ))}
+        </div>
+      ) : (stats as any[]).length > 0 ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          {(stats as any[]).slice(0, 5).map((s, i) => {
+            const palette = CARD_PALETTES[i % CARD_PALETTES.length];
+            return (
+              <div
+                key={s.personName}
+                className={`rounded-xl border p-4 space-y-1 ${palette.bg} ${palette.border}`}
+              >
+                <p className={`text-sm font-medium truncate ${palette.name}`}>{s.personName}</p>
+                <p className={`text-xl font-bold tabular-nums ${palette.amount}`}>
+                  {formatCurrency(s.total)}
+                </p>
+                <p className="text-xs text-muted-foreground">{s.count} invoice{s.count !== 1 ? "s" : ""}</p>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
 
       {/* Filter Bar */}
       <div className="flex flex-wrap items-center gap-3">
@@ -201,7 +249,19 @@ export default function InvoicesPage() {
               {(bills as any[]).map((bill) => (
                 <TableRow key={bill.id}>
                   <TableCell className="font-mono text-xs text-muted-foreground">
-                    {bill.billNumber ?? "—"}
+                    <div className="flex items-center gap-1.5">
+                      {bill.billNumber ?? "—"}
+                      {bill.receiptImageUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setPreviewUrl(bill.receiptImageUrl)}
+                          className="text-muted-foreground hover:text-foreground transition-colors"
+                          title="View receipt"
+                        >
+                          <ImageIcon className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="font-medium max-w-[160px] truncate">
                     {bill.name}
@@ -274,6 +334,20 @@ export default function InvoicesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Receipt Image Lightbox */}
+      <Dialog open={!!previewUrl} onOpenChange={(v) => !v && setPreviewUrl(null)}>
+        <DialogContent className="max-w-3xl p-2">
+          {previewUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={previewUrl}
+              alt="Receipt"
+              className="w-full h-auto max-h-[80vh] object-contain rounded"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
