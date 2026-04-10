@@ -459,7 +459,7 @@ export function InvoiceForm({
       name: newSupplierName.trim(),
       contactName: newSupplierContact.trim() || undefined,
       phone: newSupplierPhone.trim() || undefined,
-    });
+    }) as { id: string };
     setValue("supplierId", result.id);
     setSupplierModalOpen(false);
     setNewSupplierName("");
