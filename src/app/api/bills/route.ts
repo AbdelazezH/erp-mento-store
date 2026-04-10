@@ -75,8 +75,12 @@ export async function GET(req: NextRequest) {
   const baseConditions: ReturnType<typeof eq>[] = [];
   if (search) baseConditions.push(ilike(bills.name, `%${search}%`));
   if (status) baseConditions.push(eq(bills.status, status as "pending" | "overdue" | "paid" | "cancelled"));
-  if (dateFrom) baseConditions.push(gte(bills.issueDate, dateFrom));
-  if (dateTo) baseConditions.push(lte(bills.issueDate, dateTo));
+  if (dateFrom) baseConditions.push(gte(bills.issueDate, new Date(dateFrom)));
+  if (dateTo) {
+    const to = new Date(dateTo);
+    to.setHours(23, 59, 59, 999);
+    baseConditions.push(lte(bills.issueDate, to));
+  }
   if (payer) {
     baseConditions.push(
       or(
