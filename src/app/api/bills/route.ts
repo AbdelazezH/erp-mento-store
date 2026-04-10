@@ -48,7 +48,7 @@ const createSchema = z.object({
   issueDate: z.string().optional(),
   dueDate: z.string().optional().nullable(),
   status: z.enum(["pending", "overdue", "paid", "cancelled"]).default("pending"),
-  billType: z.enum(["supplier_bill", "other_expense", "operation_invoice", "packaging_invoice", "shipping_invoice", "devices_invoice", "website_invoice"]).default("supplier_bill"),
+  billType: z.enum(["supplier_bill", "other_expense", "operation_invoice", "packaging_invoice", "shipping_invoice", "devices_invoice", "website_invoice", "advertising_bill"]).default("supplier_bill"),
   paidBy: z.string().optional().nullable(),
   receiptImageUrl: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),

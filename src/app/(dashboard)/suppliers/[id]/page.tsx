@@ -26,6 +26,7 @@ const BILL_TYPE_LABELS: Record<string, string> = {
   shipping_invoice: "Shipping Invoice",
   devices_invoice: "Devices Invoice",
   website_invoice: "Website Invoice",
+  advertising_bill: "Advertising Bill",
   other_expense: "Other Expense",
 };
 

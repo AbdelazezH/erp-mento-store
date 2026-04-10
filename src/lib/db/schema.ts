@@ -30,6 +30,7 @@ export const billTypeEnum = pgEnum("bill_type", [
   "shipping_invoice",
   "devices_invoice",
   "website_invoice",
+  "advertising_bill",
 ]);
 
 export const orderStatusEnum = pgEnum("order_status", [

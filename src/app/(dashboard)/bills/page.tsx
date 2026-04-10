@@ -69,6 +69,7 @@ const TYPE_PILL_LABELS: Record<string, string> = {
   shipping_invoice:   "Shipping Bill",
   devices_invoice:    "Devices Bill",
   website_invoice:    "Website Service",
+  advertising_bill:   "Advertising Bill",
   other_expense:      "Other Expense",
 };
 
@@ -80,6 +81,7 @@ const TYPE_BADGE_STYLES: Record<string, string> = {
   shipping_invoice:   "bg-indigo-50 text-indigo-700 border-indigo-200",
   devices_invoice:    "bg-slate-100 text-slate-600 border-slate-200",
   website_invoice:    "bg-pink-50 text-pink-700 border-pink-200",
+  advertising_bill:   "bg-rose-50 text-rose-700 border-rose-200",
   other_expense:      "bg-orange-50 text-orange-700 border-orange-200",
 };
 
@@ -217,6 +219,7 @@ export default function InvoicesPage() {
     { key: "shipping_invoice", label: "Shipping Bill" },
     { key: "devices_invoice",  label: "Devices Bill" },
     { key: "website_invoice",  label: "Website Service" },
+    { key: "advertising_bill", label: "Advertising Bill" },
     { key: "other_expense",    label: "Other Expense" },
   ];
 

@@ -75,6 +75,7 @@ export const BILL_TYPES = [
   { value: "shipping_invoice", label: "Shipping Invoice" },
   { value: "devices_invoice", label: "Devices Invoice" },
   { value: "website_invoice", label: "Website Invoice" },
+  { value: "advertising_bill", label: "Advertising Bill" },
 ] as const;
 
 export const PAID_BY_OPTIONS = [
