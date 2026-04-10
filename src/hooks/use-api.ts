@@ -75,7 +75,10 @@ export function useDeleteCategory() {
 // ─── Suppliers ────────────────────────────────────────────────────────────────
 
 export function useSuppliers() {
-  return useQuery({ queryKey: ["suppliers"], queryFn: () => apiFetch<any[]>("/api/suppliers") });
+  return useQuery({
+    queryKey: ["suppliers"],
+    queryFn: () => apiFetch<{ data: any[]; total: number }>("/api/suppliers").then((r) => r.data),
+  });
 }
 
 export function useInfiniteSuppliers(params?: { search?: string }) {
@@ -143,7 +146,7 @@ export function useProducts(params?: { search?: string; categoryId?: string; sup
 
   return useQuery({
     queryKey: ["products", params],
-    queryFn: () => apiFetch<any[]>(`/api/products${query ? `?${query}` : ""}`),
+    queryFn: () => apiFetch<{ data: any[]; total: number }>(`/api/products${query ? `?${query}` : ""}`).then((r) => r.data),
   });
 }
 
@@ -268,7 +271,7 @@ export function useBills(params?: { search?: string; status?: string; billType?:
 
   return useQuery({
     queryKey: ["bills", params],
-    queryFn: () => apiFetch<any[]>(`/api/bills${query ? `?${query}` : ""}`),
+    queryFn: () => apiFetch<{ data: any[]; total: number }>(`/api/bills${query ? `?${query}` : ""}`).then((r) => r.data),
   });
 }
 
@@ -351,7 +354,7 @@ export function useDeleteBill() {
 export function useCustomers(search?: string) {
   return useQuery({
     queryKey: ["customers", search],
-    queryFn: () => apiFetch<any[]>(`/api/customers${search ? `?search=${encodeURIComponent(search)}` : ""}`),
+    queryFn: () => apiFetch<{ data: any[]; total: number }>(`/api/customers${search ? `?search=${encodeURIComponent(search)}` : ""}`).then((r) => r.data),
   });
 }
 
@@ -410,7 +413,7 @@ export function useOrders(params?: { search?: string; status?: string }) {
 
   return useQuery({
     queryKey: ["orders", params],
-    queryFn: () => apiFetch<any[]>(`/api/orders${query ? `?${query}` : ""}`),
+    queryFn: () => apiFetch<{ data: any[]; total: number }>(`/api/orders${query ? `?${query}` : ""}`).then((r) => r.data),
   });
 }
 
