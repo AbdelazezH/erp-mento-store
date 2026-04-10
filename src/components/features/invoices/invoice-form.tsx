@@ -54,7 +54,16 @@ import {
   ImageIcon,
   ChevronDown,
   Download,
+  ZoomIn,
+  Percent,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -84,8 +93,7 @@ const lineItemSchema = z.object({
   description: z.string().min(1, "Required"),
   quantity: z.coerce.number().min(0.01, "Must be > 0"),
   unitPrice: z.coerce.number().min(0, "Must be >= 0"),
-  discountPercent: z.coerce.number().min(0).default(0),
-  discountType: z.enum(["percent", "fixed"]).default("percent"),
+  discountPercent: z.coerce.number().min(0).max(100).default(0),
 });
 
 const invoiceSchema = z.object({
@@ -112,8 +120,7 @@ type InvoiceFormValues = z.infer<typeof invoiceSchema>;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function calcLineTotal(qty: number, unit: number, disc: number, discountType: "percent" | "fixed" = "percent") {
-  if (discountType === "fixed") return Math.max(0, qty * unit - disc);
+function calcLineTotal(qty: number, unit: number, disc: number) {
   return qty * unit * (1 - disc / 100);
 }
 
@@ -239,6 +246,7 @@ function ReceiptDropZone({
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   async function handleFile(file: File) {
     setUploading(true);
@@ -257,6 +265,7 @@ function ReceiptDropZone({
   }
 
   return (
+    <>
     <div
       className={cn(
         "relative rounded-lg border-2 border-dashed p-8 flex flex-col items-center justify-center gap-2 transition-colors cursor-pointer",
@@ -289,11 +298,21 @@ function ReceiptDropZone({
         <p className="text-sm text-muted-foreground">Uploading…</p>
       ) : value ? (
         <div className="flex items-center gap-4 w-full">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={value} alt="Receipt" className="h-20 w-20 rounded-lg object-cover border" />
+          {/* Clickable thumbnail → opens lightbox */}
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setPreviewOpen(true); }}
+            className="relative group/thumb h-20 w-20 shrink-0 rounded-lg overflow-hidden border focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={value} alt="Receipt" className="h-full w-full object-cover" />
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex items-center justify-center">
+              <ZoomIn className="h-5 w-5 text-white" />
+            </div>
+          </button>
           <div className="flex-1">
             <p className="text-sm font-medium">Receipt uploaded</p>
-            <p className="text-xs text-muted-foreground">Click to change or drag a new image</p>
+            <p className="text-xs text-muted-foreground">Click image to preview · drag or click area to replace</p>
           </div>
           <a
             href={value}
@@ -326,6 +345,45 @@ function ReceiptDropZone({
         </>
       )}
     </div>
+
+    {/* Full-size preview lightbox */}
+    {value && (
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-3xl p-0 overflow-hidden gap-0 [&>button]:hidden">
+          <DialogTitle className="sr-only">Receipt Preview</DialogTitle>
+          <div className="flex items-center justify-between px-3 py-2 border-b bg-background">
+            <span className="text-sm font-medium text-muted-foreground">Receipt Preview</span>
+            <div className="flex items-center gap-1">
+              <a
+                href={value}
+                download
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1.5 rounded hover:bg-muted"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Download
+              </a>
+              <button
+                onClick={() => setPreviewOpen(false)}
+                className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+          <div className="p-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={value}
+              alt="Receipt"
+              className="w-full h-auto max-h-[80vh] object-contain rounded"
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+    )}
+    </>
   );
 }
 
@@ -360,7 +418,7 @@ export function InvoiceForm({
       status: "pending",
       issueDate: today(),
       dueDate: today(),
-      items: [{ mode: "text", productId: null, description: "", quantity: 1, unitPrice: 0, discountPercent: 0, discountType: "percent" as const }],
+      items: [{ mode: "text", productId: null, description: "", quantity: 1, unitPrice: 0, discountPercent: 0 }],
       ...defaultValues,
     },
   });
@@ -381,9 +439,10 @@ export function InvoiceForm({
         : [{ personName: "", amount: "" }]
   );
 
-  // Bulk discount
-  const [bulkDiscount, setBulkDiscount] = useState("");
-  const [bulkDiscountType, setBulkDiscountType] = useState<"percent" | "fixed">("percent");
+  // Bulk discount dialog
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
+  const [bulkValue, setBulkValue] = useState("");
+  const [bulkMode, setBulkMode] = useState<"percent" | "fixed">("percent");
 
   // Totals
   const { subTotal, totalDiscount, grandTotal } = useMemo(() => {
@@ -394,13 +453,8 @@ export function InvoiceForm({
       const qty = Number(item.quantity) || 0;
       const unit = Number(item.unitPrice) || 0;
       const disc = Number(item.discountPercent) || 0;
-      const dtype = item.discountType ?? "percent";
       subTotal += qty * unit;
-      if (dtype === "fixed") {
-        totalDiscount += Math.min(disc, qty * unit);
-      } else {
-        totalDiscount += qty * unit * (disc / 100);
-      }
+      totalDiscount += qty * unit * (disc / 100);
     });
     return { subTotal, totalDiscount, grandTotal: subTotal - totalDiscount };
   }, [watchedItems]);
@@ -424,17 +478,14 @@ export function InvoiceForm({
       const qty = Number(item.quantity);
       const unit = Number(item.unitPrice);
       const disc = Number(item.discountPercent) || 0;
-      const dtype = item.discountType ?? "percent";
-      const total = dtype === "fixed"
-        ? Math.max(0, qty * unit - disc)
-        : qty * unit * (1 - disc / 100);
+      const total = qty * unit * (1 - disc / 100);
       return {
         productId: item.mode === "product" ? (item.productId ?? null) : null,
         description: item.description,
         quantity: String(qty),
         unitPrice: String(unit),
         discountPercent: String(disc),
-        discountType: dtype,
+        discountType: "percent" as const,
         total: total.toFixed(2),
       };
     });
@@ -470,6 +521,22 @@ export function InvoiceForm({
   function duplicateLine(idx: number) {
     const item = watchedItems?.[idx];
     if (item) append({ ...item });
+  }
+
+  function applyBulkDiscount() {
+    const val = parseFloat(bulkValue) || 0;
+    const pct =
+      bulkMode === "fixed"
+        ? subTotal > 0
+          ? Math.min(100, (val / subTotal) * 100)
+          : 0
+        : Math.min(100, Math.max(0, val));
+    fields.forEach((_, i) =>
+      setValue(`items.${i}.discountPercent`, parseFloat(pct.toFixed(4)))
+    );
+    setBulkDialogOpen(false);
+    setBulkValue("");
+    setBulkMode("percent");
   }
 
   return (
@@ -750,36 +817,10 @@ export function InvoiceForm({
               )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <div className="flex items-center gap-1.5">
-                <Label className="text-xs text-muted-foreground whitespace-nowrap">Bulk Disc</Label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const newType = bulkDiscountType === "percent" ? "fixed" : "percent";
-                    setBulkDiscountType(newType);
-                    fields.forEach((_, i) => setValue(`items.${i}.discountType`, newType));
-                  }}
-                  className="text-xs font-medium px-1.5 py-0.5 rounded bg-muted hover:bg-muted/80 transition-colors w-8 text-center shrink-0"
-                >
-                  {bulkDiscountType === "percent" ? "%" : "L.E"}
-                </button>
-                <Input
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  placeholder="0"
-                  value={bulkDiscount}
-                  onChange={(e) => {
-                    setBulkDiscount(e.target.value);
-                    const v = parseFloat(e.target.value) || 0;
-                    fields.forEach((_, i) => {
-                      setValue(`items.${i}.discountPercent`, v);
-                      setValue(`items.${i}.discountType`, bulkDiscountType);
-                    });
-                  }}
-                  className="w-20 h-8 text-sm"
-                />
-              </div>
+              <Button type="button" variant="outline" size="sm" onClick={() => setBulkDialogOpen(true)}>
+                <Percent className="mr-1.5 h-3.5 w-3.5" />
+                Bulk Discount
+              </Button>
               <Button
                 type="button"
                 variant="outline"
@@ -792,7 +833,6 @@ export function InvoiceForm({
                     quantity: 1,
                     unitPrice: 0,
                     discountPercent: 0,
-                    discountType: "percent",
                   })
                 }
               >
@@ -825,10 +865,7 @@ export function InvoiceForm({
                   const qty = Number(item?.quantity) || 0;
                   const unit = Number(item?.unitPrice) || 0;
                   const disc = Number(item?.discountPercent) || 0;
-                  const discountType = item?.discountType ?? "percent";
-                  const lineTotal = discountType === "fixed"
-                    ? Math.max(0, qty * unit - disc)
-                    : qty * unit * (1 - disc / 100);
+                  const lineTotal = qty * unit * (1 - disc / 100);
                   const mode = item?.mode ?? "text";
 
                   return (
@@ -919,21 +956,12 @@ export function InvoiceForm({
 
                       <TableCell className="py-2">
                         <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const newType = discountType === "percent" ? "fixed" : "percent";
-                              setValue(`items.${idx}.discountType`, newType);
-                            }}
-                            className="text-xs font-medium px-1 py-0.5 rounded bg-muted hover:bg-muted/80 transition-colors w-8 text-center shrink-0"
-                          >
-                            {discountType === "percent" ? "%" : "L.E"}
-                          </button>
+                          <span className="text-xs text-muted-foreground w-5 text-center shrink-0">%</span>
                           <Input
                             type="number"
                             step="0.01"
                             min="0"
-                            {...(discountType === "percent" ? { max: "100" } : {})}
+                            max="100"
                             {...register(`items.${idx}.discountPercent`)}
                             className="h-8 text-sm"
                           />
@@ -1007,6 +1035,88 @@ export function InvoiceForm({
           {isSubmitting ? "Saving…" : billId ? "Save Changes" : "Create Invoice"}
         </Button>
       </div>
+
+      {/* Bulk Discount Dialog */}
+      <Dialog open={bulkDialogOpen} onOpenChange={setBulkDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Bulk Discount</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {/* Mode toggle */}
+            <div className="flex gap-1 rounded-lg bg-muted p-1">
+              <button
+                type="button"
+                onClick={() => setBulkMode("percent")}
+                className={cn(
+                  "flex-1 rounded-md py-1.5 text-sm font-medium transition-colors",
+                  bulkMode === "percent"
+                    ? "bg-background shadow-sm text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                %
+              </button>
+              <button
+                type="button"
+                onClick={() => setBulkMode("fixed")}
+                className={cn(
+                  "flex-1 rounded-md py-1.5 text-sm font-medium transition-colors",
+                  bulkMode === "fixed"
+                    ? "bg-background shadow-sm text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                L.E Amount
+              </button>
+            </div>
+
+            {/* Input */}
+            <div className="space-y-1.5">
+              <Label>{bulkMode === "percent" ? "Discount %" : "Discount Amount (L.E)"}</Label>
+              <div className="relative">
+                <Input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  placeholder={bulkMode === "percent" ? "e.g. 10" : "e.g. 50"}
+                  value={bulkValue}
+                  onChange={(e) => setBulkValue(e.target.value)}
+                  className="pr-12"
+                  autoFocus
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">
+                  {bulkMode === "percent" ? "%" : "L.E"}
+                </span>
+              </div>
+              {/* Live conversion preview in fixed mode */}
+              {bulkMode === "fixed" && bulkValue && subTotal > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  ≈{" "}
+                  {Math.min(100, ((parseFloat(bulkValue) || 0) / subTotal) * 100).toFixed(2)}
+                  % of {formatCurrency(subTotal)}
+                </p>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setBulkDialogOpen(false);
+                setBulkValue("");
+                setBulkMode("percent");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button type="button" onClick={applyBulkDiscount}>
+              Apply
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </form>
   );
 }

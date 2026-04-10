@@ -86,6 +86,8 @@ export async function GET(req: NextRequest) {
       notes: bills.notes,
       createdAt: bills.createdAt,
       supplierName: suppliers.name,
+      payerCount: sql<number>`(SELECT COUNT(*)::int FROM bill_payers WHERE bill_id = ${bills.id})`,
+      firstPayerName: sql<string | null>`(SELECT person_name FROM bill_payers WHERE bill_id = ${bills.id} ORDER BY id LIMIT 1)`,
     })
     .from(bills)
     .leftJoin(suppliers, eq(bills.supplierId, suppliers.id))

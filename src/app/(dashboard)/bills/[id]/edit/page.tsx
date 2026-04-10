@@ -53,9 +53,8 @@ export default function EditInvoicePage({ params }: { params: Promise<{ id: stri
             quantity: parseFloat(item.quantity ?? "1"),
             unitPrice: parseFloat(item.unitPrice ?? "0"),
             discountPercent: parseFloat(item.discountPercent ?? "0"),
-            discountType: (item.discountType ?? "percent") as "percent" | "fixed",
           }))
-        : [{ mode: "text", productId: null, description: "", quantity: 1, unitPrice: 0, discountPercent: 0, discountType: "percent" as const }],
+        : [{ mode: "text", productId: null, description: "", quantity: 1, unitPrice: 0, discountPercent: 0 }],
   };
 
   const initialPayers = b.payers?.length > 0

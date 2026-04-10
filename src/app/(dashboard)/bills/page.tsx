@@ -353,7 +353,6 @@ export default function InvoicesPage() {
             <TableHeader>
               <TableRow className="bg-muted/30">
                 <TableHead className="font-semibold">Invoice #</TableHead>
-                <TableHead className="font-semibold">Supplier</TableHead>
                 <TableHead className="font-semibold">Type</TableHead>
                 <TableHead className="font-semibold">Paid By</TableHead>
                 <TableHead className="font-semibold">Dates</TableHead>
@@ -393,23 +392,19 @@ export default function InvoicesPage() {
                     </div>
                   </TableCell>
 
-                  {/* Supplier */}
-                  <TableCell className="text-sm">
-                    {bill.supplierName ? (
-                      <span className="font-medium">{bill.supplierName}</span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-
-                  {/* Type badge */}
+                  {/* Type + Supplier combined */}
                   <TableCell>
-                    <span className={cn(
-                      "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium whitespace-nowrap",
-                      TYPE_BADGE_STYLES[bill.billType] ?? "bg-gray-100 text-gray-600 border-gray-200"
-                    )}>
-                      {TYPE_PILL_LABELS[bill.billType] ?? bill.billType}
-                    </span>
+                    <div className="flex flex-col gap-0.5">
+                      <span className={cn(
+                        "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium whitespace-nowrap w-fit",
+                        TYPE_BADGE_STYLES[bill.billType] ?? "bg-gray-100 text-gray-600 border-gray-200"
+                      )}>
+                        {TYPE_PILL_LABELS[bill.billType] ?? bill.billType}
+                      </span>
+                      {bill.supplierName && (
+                        <span className="text-xs text-muted-foreground pl-0.5">{bill.supplierName}</span>
+                      )}
+                    </div>
                   </TableCell>
 
                   {/* Paid By */}
@@ -418,6 +413,16 @@ export default function InvoicesPage() {
                       <div className="flex items-center gap-1.5 text-muted-foreground">
                         <User className="h-3.5 w-3.5 shrink-0" />
                         <span>{bill.paidBy}</span>
+                      </div>
+                    ) : bill.firstPayerName ? (
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <User className="h-3.5 w-3.5 shrink-0" />
+                        <span>
+                          {bill.firstPayerName}
+                          {bill.payerCount > 1 && (
+                            <span className="text-muted-foreground/60">, +{bill.payerCount - 1}</span>
+                          )}
+                        </span>
                       </div>
                     ) : (
                       <span className="text-muted-foreground">—</span>
