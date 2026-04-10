@@ -81,7 +81,7 @@ const campaignSchema = z.object({
   advertisingBudget: z.coerce.number().min(0).default(0),
   shippingCost: z.coerce.number().min(0).default(0),
   otherCosts: z.coerce.number().min(0).default(0),
-  products: z.array(campaignProductSchema).min(1, "At least one product required"),
+  products: z.array(campaignProductSchema).optional().default([]),
 });
 
 type CampaignFormValues = z.infer<typeof campaignSchema>;
@@ -230,9 +230,7 @@ function CampaignFormDialog({
       advertisingBudget: 0,
       shippingCost: 0,
       otherCosts: 0,
-      products: [
-        { productId: "", originalPrice: 0, campaignPrice: 0, cogs: 0, expectedUnits: 0 },
-      ],
+      products: [],
     },
   });
 
@@ -347,10 +345,6 @@ function CampaignFormDialog({
                 Add Product
               </Button>
             </div>
-
-            {errors.products && !Array.isArray(errors.products) && (
-              <p className="text-xs text-destructive">{(errors.products as any).message}</p>
-            )}
 
             <div className="rounded-lg border overflow-hidden">
               <Table>
