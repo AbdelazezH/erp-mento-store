@@ -794,9 +794,8 @@ function VariantCard({
   productSellingPrice?: number | null;
   galleryImages: string[];
 }) {
-  const priceHint = productSellingPrice != null
-    ? productSellingPrice.toFixed(2)
-    : "0.00";
+  const priceNum = productSellingPrice != null ? Number(productSellingPrice) : null;
+  const priceHint = priceNum != null && !isNaN(priceNum) ? priceNum.toFixed(2) : "0.00";
 
   return (
     <div className="border rounded-lg p-4 space-y-3 relative">
@@ -862,8 +861,8 @@ function VariantCard({
             value={variant.sellingPrice}
             onChange={(e) => onChange({ sellingPrice: e.target.value })}
             onBlur={(e) => {
-              if (!e.target.value && productSellingPrice != null) {
-                onChange({ sellingPrice: productSellingPrice.toFixed(2) });
+              if (!e.target.value && priceNum != null && !isNaN(priceNum)) {
+                onChange({ sellingPrice: priceNum.toFixed(2) });
               }
             }}
             placeholder={priceHint}
