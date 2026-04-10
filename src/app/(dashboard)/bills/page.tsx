@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   useBills,
@@ -252,6 +252,34 @@ export default function InvoicesPage() {
     return counts;
   }, [rawBills]);
 
+  const PAGE_SIZE = 25;
+  const [displayCount, setDisplayCount] = useState(PAGE_SIZE);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  // Reset displayCount whenever any filter changes
+  useEffect(() => {
+    setDisplayCount(PAGE_SIZE);
+  }, [search, typeFilter, datePreset, dateFrom, dateTo, payerFilter, dateSortDir]);
+
+  // Infinite scroll via IntersectionObserver
+  const loadMore = useCallback(() => {
+    setDisplayCount((c) => c + PAGE_SIZE);
+  }, []);
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting) loadMore(); },
+      { rootMargin: "200px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [loadMore]);
+
+  const displayedBills = bills.slice(0, displayCount);
+  const hasMore = displayCount < bills.length;
+
   const handleDelete = async () => {
     if (!deleteId) return;
     await deleteBill.mutateAsync(deleteId);
@@ -446,10 +474,33 @@ export default function InvoicesPage() {
 
       {/* Table */}
       {isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="h-14 animate-pulse rounded-lg bg-muted" />
-          ))}
+        <div className="rounded-xl border overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/30">
+                <TableHead className="font-semibold">Invoice #</TableHead>
+                <TableHead className="font-semibold">Type</TableHead>
+                <TableHead className="font-semibold">Paid By</TableHead>
+                <TableHead className="font-semibold">Dates</TableHead>
+                <TableHead className="font-semibold">Status</TableHead>
+                <TableHead className="text-right font-semibold">Amount</TableHead>
+                <TableHead className="w-20"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {Array.from({ length: 8 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell><div className="h-4 w-20 bg-muted animate-pulse rounded" /></TableCell>
+                  <TableCell><div className="h-5 w-28 bg-muted animate-pulse rounded-full" /></TableCell>
+                  <TableCell><div className="h-4 w-24 bg-muted animate-pulse rounded" /></TableCell>
+                  <TableCell><div className="h-4 w-20 bg-muted animate-pulse rounded" /></TableCell>
+                  <TableCell><div className="h-6 w-20 bg-muted animate-pulse rounded-full" /></TableCell>
+                  <TableCell className="text-right"><div className="h-4 w-16 bg-muted animate-pulse rounded ml-auto" /></TableCell>
+                  <TableCell />
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       ) : bills.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-20 text-center">
@@ -468,6 +519,7 @@ export default function InvoicesPage() {
           )}
         </div>
       ) : (
+        <>
         <div className="rounded-xl border overflow-hidden">
           <Table>
             <TableHeader>
@@ -494,7 +546,7 @@ export default function InvoicesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {bills.map((bill) => (
+              {displayedBills.map((bill) => (
                 <TableRow key={bill.id} className="group">
                   {/* Invoice # + name */}
                   <TableCell>
@@ -613,7 +665,30 @@ export default function InvoicesPage() {
               ))}
             </TableBody>
           </Table>
+
+          {/* Skeleton rows while loading more */}
+          {hasMore && (
+            <Table>
+              <TableBody>
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell><div className="h-4 w-20 bg-muted animate-pulse rounded" /></TableCell>
+                    <TableCell><div className="h-5 w-28 bg-muted animate-pulse rounded-full" /></TableCell>
+                    <TableCell><div className="h-4 w-24 bg-muted animate-pulse rounded" /></TableCell>
+                    <TableCell><div className="h-4 w-20 bg-muted animate-pulse rounded" /></TableCell>
+                    <TableCell><div className="h-6 w-20 bg-muted animate-pulse rounded-full" /></TableCell>
+                    <TableCell className="text-right"><div className="h-4 w-16 bg-muted animate-pulse rounded ml-auto" /></TableCell>
+                    <TableCell />
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </div>
+
+        {/* Invisible sentinel — triggers loadMore when it enters the viewport */}
+        <div ref={sentinelRef} className="h-1" />
+        </>
       )}
 
       {/* Delete Confirmation */}
