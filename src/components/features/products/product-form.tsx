@@ -117,6 +117,16 @@ function generateBarcode() {
   return Math.floor(1000000000000 + Math.random() * 9000000000000).toString();
 }
 
+// ─── Helper: compute SHA-256 hash of file ─
+
+async function computeFileHash(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 // ─── Helper: generate cartesian product of selected values across attribute rows ─
 
 function generateVariants(rows: AttributeRow[]): Omit<VariantDraft, "_key" | "id" | "sku" | "barcode" | "imageUrl" | "sellingPrice" | "stockQuantity">[] {
@@ -447,19 +457,30 @@ function AttributeRowCard({
 
 // ─── Gallery Upload Cell ──────────────────────────────────────────────────────
 
-function GalleryUploadCell({ onUpload }: { onUpload: (url: string) => void }) {
+function GalleryUploadCell({
+  onUpload,
+  existingHashes,
+}: {
+  onUpload: (url: string, hash: string) => void;
+  existingHashes: Set<string>;
+}) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
   async function handleFile(file: File) {
     setUploading(true);
     try {
+      const hash = await computeFileHash(file);
+      if (existingHashes.has(hash)) {
+        toast.error("This image is already in the gallery");
+        return;
+      }
       const form = new FormData();
       form.append("file", file);
       const res = await fetch("/api/uploads", { method: "POST", body: form });
       if (!res.ok) throw new Error("Upload failed");
       const { url } = await res.json();
-      onUpload(url);
+      onUpload(url, hash);
     } catch {
       toast.error("Upload failed");
     } finally {
@@ -905,6 +926,7 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
 
   // ── Gallery state ──
   const [galleryImages, setGalleryImages] = useState<string[]>([]);
+  const [galleryHashes, setGalleryHashes] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (initialData?.gallery?.length > 0) {
@@ -1477,7 +1499,10 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                   <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Product Image</h2>
                   <ProductImagePicker
                     value={imageUrl}
-                    onSelect={(url) => setValue("imageUrl", url)}
+                    onSelect={(url) => {
+                      setValue("imageUrl", url);
+                      setGalleryImages((g) => (g.includes(url) ? g : [...g, url]));
+                    }}
                     onRemove={() => setValue("imageUrl", null)}
                     size="lg"
                     className="w-full h-48"
@@ -1662,7 +1687,13 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                 <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16 text-center gap-3">
                   <Images className="h-10 w-10 text-muted-foreground/40" />
                   <p className="text-sm text-muted-foreground">No gallery images yet</p>
-                  <GalleryUploadCell onUpload={(url) => setGalleryImages((g) => [...g, url])} />
+                  <GalleryUploadCell
+                    existingHashes={galleryHashes}
+                    onUpload={(url, hash) => {
+                      setGalleryImages((g) => (g.includes(url) ? g : [...g, url]));
+                      setGalleryHashes((h) => new Set([...h, hash]));
+                    }}
+                  />
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
@@ -1682,7 +1713,13 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                       </div>
                     </div>
                   ))}
-                  <GalleryUploadCell onUpload={(url) => setGalleryImages((g) => [...g, url])} />
+                  <GalleryUploadCell
+                    existingHashes={galleryHashes}
+                    onUpload={(url, hash) => {
+                      setGalleryImages((g) => (g.includes(url) ? g : [...g, url]));
+                      setGalleryHashes((h) => new Set([...h, hash]));
+                    }}
+                  />
                 </div>
               )}
             </div>

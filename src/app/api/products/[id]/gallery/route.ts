@@ -39,9 +39,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   // Delete all existing, insert fresh
   await db.delete(productImages).where(eq(productImages.productId, id));
 
-  if (parsed.data.length > 0) {
+  const unique = parsed.data.filter(
+    (img, idx, arr) => arr.findIndex((x) => x.imageUrl === img.imageUrl) === idx
+  );
+
+  if (unique.length > 0) {
     await db.insert(productImages).values(
-      parsed.data.map((img, i) => ({
+      unique.map((img, i) => ({
         productId: id,
         imageUrl: img.imageUrl,
         sortOrder: img.sortOrder ?? i,
