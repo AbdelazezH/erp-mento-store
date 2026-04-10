@@ -106,6 +106,7 @@ const invoiceSchema = z.object({
     "shipping_invoice",
     "devices_invoice",
     "website_invoice",
+    "advertising_bill",
   ]),
   supplierId: z.string().optional().nullable(),
   name: z.string().optional(),
