@@ -50,44 +50,58 @@ export async function GET(req: NextRequest) {
     END < 10
   `);
 
-  const rows = await db
-    .select({
-      id: products.id,
-      name: products.name,
-      description: products.description,
-      categoryId: products.categoryId,
-      supplierId: products.supplierId,
-      basePrice: products.basePrice,
-      sellingPrice: products.sellingPrice,
-      discountPercent: products.discountPercent,
-      averageCost: products.averageCost,
-      stockQuantity: products.stockQuantity,
-      totalStock: sql<number>`
-        CASE WHEN ${products.hasVariants} = true
-        THEN COALESCE((
-          SELECT SUM(pv.stock_quantity)
-          FROM product_variants pv
-          WHERE pv.product_id = ${products.id}
-        ), 0)
-        ELSE ${products.stockQuantity}
-        END
-      `,
-      sku: products.sku,
-      barcode: products.barcode,
-      imageUrl: products.imageUrl,
-      hasVariants: products.hasVariants,
-      isPublished: products.isPublished,
-      createdAt: products.createdAt,
-      categoryName: categories.name,
-      supplierName: suppliers.name,
-    })
-    .from(products)
-    .leftJoin(categories, eq(products.categoryId, categories.id))
-    .leftJoin(suppliers, eq(products.supplierId, suppliers.id))
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(desc(products.createdAt));
+  const limit = Math.min(parseInt(searchParams.get("limit") ?? "50", 10) || 50, 200);
+  const offset = parseInt(searchParams.get("offset") ?? "0", 10) || 0;
 
-  return apiResponse(rows);
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const [rows, [{ total }]] = await Promise.all([
+    db
+      .select({
+        id: products.id,
+        name: products.name,
+        description: products.description,
+        categoryId: products.categoryId,
+        supplierId: products.supplierId,
+        basePrice: products.basePrice,
+        sellingPrice: products.sellingPrice,
+        discountPercent: products.discountPercent,
+        averageCost: products.averageCost,
+        stockQuantity: products.stockQuantity,
+        totalStock: sql<number>`
+          CASE WHEN ${products.hasVariants} = true
+          THEN COALESCE((
+            SELECT SUM(pv.stock_quantity)
+            FROM product_variants pv
+            WHERE pv.product_id = ${products.id}
+          ), 0)
+          ELSE ${products.stockQuantity}
+          END
+        `,
+        sku: products.sku,
+        barcode: products.barcode,
+        imageUrl: products.imageUrl,
+        hasVariants: products.hasVariants,
+        isPublished: products.isPublished,
+        createdAt: products.createdAt,
+        categoryName: categories.name,
+        supplierName: suppliers.name,
+      })
+      .from(products)
+      .leftJoin(categories, eq(products.categoryId, categories.id))
+      .leftJoin(suppliers, eq(products.supplierId, suppliers.id))
+      .where(whereClause)
+      .orderBy(desc(products.createdAt))
+      .limit(limit)
+      .offset(offset),
+
+    db.select({ total: sql<number>`COUNT(*)::int` }).from(products)
+      .leftJoin(categories, eq(products.categoryId, categories.id))
+      .leftJoin(suppliers, eq(products.supplierId, suppliers.id))
+      .where(whereClause),
+  ]);
+
+  return apiResponse({ data: rows, total });
 }
 
 export async function POST(req: NextRequest) {

@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
-  useSuppliers,
+  useInfiniteSuppliers,
   useCreateSupplier,
   useUpdateSupplier,
   useDeleteSupplier,
@@ -218,16 +218,27 @@ export default function SuppliersPage() {
   const [editSupplier, setEditSupplier] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const { data: suppliers = [], isLoading } = useSuppliers();
+  const {
+    data: suppliersData,
+    isLoading,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = useInfiniteSuppliers({ search: search || undefined });
+  const filtered = useMemo(() => suppliersData?.pages.flatMap((p) => p.data) ?? [], [suppliersData]);
   const deleteSupplier = useDeleteSupplier();
 
-  const filtered = (suppliers as any[]).filter(
-    (s) =>
-      !search ||
-      s.name.toLowerCase().includes(search.toLowerCase()) ||
-      (s.contactName ?? "").toLowerCase().includes(search.toLowerCase()) ||
-      (s.email ?? "").toLowerCase().includes(search.toLowerCase())
-  );
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !hasNextPage) return;
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting && !isFetchingNextPage) fetchNextPage(); },
+      { rootMargin: "300px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const handleDelete = async () => {
     if (!deleteId) return;
@@ -264,10 +275,20 @@ export default function SuppliersPage() {
 
       {/* Table */}
       {isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="h-14 animate-pulse rounded-lg bg-muted" />
-          ))}
+        <div className="rounded-xl border overflow-hidden">
+          <Table><TableBody>
+            {Array.from({ length: 8 }).map((_, i) => (
+              <TableRow key={i}>
+                <TableCell><div className="h-4 w-28 bg-muted animate-pulse rounded" /></TableCell>
+                <TableCell><div className="h-4 w-24 bg-muted animate-pulse rounded" /></TableCell>
+                <TableCell><div className="h-4 w-32 bg-muted animate-pulse rounded" /></TableCell>
+                <TableCell><div className="h-4 w-24 bg-muted animate-pulse rounded" /></TableCell>
+                <TableCell><div className="h-4 w-10 bg-muted animate-pulse rounded ml-auto" /></TableCell>
+                <TableCell><div className="h-4 w-20 bg-muted animate-pulse rounded ml-auto" /></TableCell>
+                <TableCell />
+              </TableRow>
+            ))}
+          </TableBody></Table>
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-20 text-center">
@@ -286,6 +307,7 @@ export default function SuppliersPage() {
           )}
         </div>
       ) : (
+        <>
         <div className="rounded-xl border overflow-hidden">
           <Table>
             <TableHeader>
@@ -378,7 +400,24 @@ export default function SuppliersPage() {
               ))}
             </TableBody>
           </Table>
+          {isFetchingNextPage && (
+            <Table><TableBody>
+              {Array.from({ length: 3 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell><div className="h-4 w-28 bg-muted animate-pulse rounded" /></TableCell>
+                  <TableCell><div className="h-4 w-24 bg-muted animate-pulse rounded" /></TableCell>
+                  <TableCell><div className="h-4 w-32 bg-muted animate-pulse rounded" /></TableCell>
+                  <TableCell><div className="h-4 w-24 bg-muted animate-pulse rounded" /></TableCell>
+                  <TableCell><div className="h-4 w-10 bg-muted animate-pulse rounded ml-auto" /></TableCell>
+                  <TableCell><div className="h-4 w-20 bg-muted animate-pulse rounded ml-auto" /></TableCell>
+                  <TableCell />
+                </TableRow>
+              ))}
+            </TableBody></Table>
+          )}
         </div>
+        {hasNextPage && <div ref={sentinelRef} className="h-1" />}
+        </>
       )}
 
       {/* Create Dialog */}

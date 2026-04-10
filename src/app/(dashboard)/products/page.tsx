@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
-  useProducts,
+  useInfiniteProducts,
   useDeleteProduct,
   useCategories,
   useSuppliers,
@@ -179,16 +179,36 @@ export default function ProductsPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [newCategoryOpen, setNewCategoryOpen] = useState(false);
 
-  const { data: products = [], isLoading } = useProducts({
+  const {
+    data: productsData,
+    isLoading,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = useInfiniteProducts({
     search: search || undefined,
     categoryId: categoryId || undefined,
     supplierId: supplierId || undefined,
     lowStock: lowStock || undefined,
   });
+  const products = useMemo(() => productsData?.pages.flatMap((p) => p.data) ?? [], [productsData]);
 
   const { data: categories = [] } = useCategories();
   const { data: suppliers = [] } = useSuppliers();
   const deleteProduct = useDeleteProduct();
+
+  // Infinite scroll
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !hasNextPage) return;
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting && !isFetchingNextPage) fetchNextPage(); },
+      { rootMargin: "300px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const handleDelete = async () => {
     if (!deleteId) return;
@@ -295,10 +315,22 @@ export default function ProductsPage() {
 
       {/* Table */}
       {isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-14 animate-pulse rounded-lg bg-muted" />
-          ))}
+        <div className="rounded-xl border overflow-hidden">
+          <Table>
+            <TableBody>
+              {Array.from({ length: 8 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell><div className="h-10 w-10 bg-muted animate-pulse rounded" /></TableCell>
+                  <TableCell><div className="h-4 w-32 bg-muted animate-pulse rounded" /></TableCell>
+                  <TableCell><div className="h-4 w-16 bg-muted animate-pulse rounded" /></TableCell>
+                  <TableCell><div className="h-4 w-20 bg-muted animate-pulse rounded" /></TableCell>
+                  <TableCell><div className="h-5 w-14 bg-muted animate-pulse rounded-full" /></TableCell>
+                  <TableCell><div className="h-4 w-16 bg-muted animate-pulse rounded" /></TableCell>
+                  <TableCell />
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       ) : (products as any[]).length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-20 text-center">
@@ -317,6 +349,7 @@ export default function ProductsPage() {
           )}
         </div>
       ) : (
+        <>
         <div className="rounded-xl border overflow-hidden">
           <Table>
             <TableHeader>
@@ -467,7 +500,24 @@ export default function ProductsPage() {
               ))}
             </TableBody>
           </Table>
+          {isFetchingNextPage && (
+            <Table><TableBody>
+              {Array.from({ length: 3 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell><div className="h-10 w-10 bg-muted animate-pulse rounded" /></TableCell>
+                  <TableCell><div className="h-4 w-32 bg-muted animate-pulse rounded" /></TableCell>
+                  <TableCell><div className="h-4 w-16 bg-muted animate-pulse rounded" /></TableCell>
+                  <TableCell><div className="h-4 w-20 bg-muted animate-pulse rounded" /></TableCell>
+                  <TableCell><div className="h-5 w-14 bg-muted animate-pulse rounded-full" /></TableCell>
+                  <TableCell><div className="h-4 w-16 bg-muted animate-pulse rounded" /></TableCell>
+                  <TableCell />
+                </TableRow>
+              ))}
+            </TableBody></Table>
+          )}
         </div>
+        {hasNextPage && <div ref={sentinelRef} className="h-1" />}
+        </>
       )}
 
       {/* Delete Confirmation */}

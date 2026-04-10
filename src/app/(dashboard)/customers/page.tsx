@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
-  useCustomers,
+  useInfiniteCustomers,
   useCreateCustomer,
   useUpdateCustomer,
   useDeleteCustomer,
@@ -197,8 +197,27 @@ export default function CustomersPage() {
   const [editCustomer, setEditCustomer] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const { data: customers = [], isLoading } = useCustomers(search || undefined);
+  const {
+    data: customersData,
+    isLoading,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = useInfiniteCustomers({ search: search || undefined });
+  const customers = useMemo(() => customersData?.pages.flatMap((p) => p.data) ?? [], [customersData]);
   const deleteCustomer = useDeleteCustomer();
+
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !hasNextPage) return;
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting && !isFetchingNextPage) fetchNextPage(); },
+      { rootMargin: "300px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const handleDelete = async () => {
     if (!deleteId) return;
@@ -233,10 +252,19 @@ export default function CustomersPage() {
 
       {/* Table */}
       {isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-14 animate-pulse rounded-lg bg-muted" />
-          ))}
+        <div className="rounded-xl border overflow-hidden">
+          <Table><TableBody>
+            {Array.from({ length: 8 }).map((_, i) => (
+              <TableRow key={i}>
+                <TableCell><div className="h-4 w-28 bg-muted animate-pulse rounded" /></TableCell>
+                <TableCell><div className="h-4 w-32 bg-muted animate-pulse rounded" /></TableCell>
+                <TableCell><div className="h-4 w-24 bg-muted animate-pulse rounded" /></TableCell>
+                <TableCell><div className="h-4 w-12 bg-muted animate-pulse rounded" /></TableCell>
+                <TableCell><div className="h-4 w-20 bg-muted animate-pulse rounded" /></TableCell>
+                <TableCell />
+              </TableRow>
+            ))}
+          </TableBody></Table>
         </div>
       ) : (customers as any[]).length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-20 text-center">
@@ -255,6 +283,7 @@ export default function CustomersPage() {
           )}
         </div>
       ) : (
+        <>
         <div className="rounded-xl border overflow-hidden">
           <Table>
             <TableHeader>
@@ -314,7 +343,23 @@ export default function CustomersPage() {
               ))}
             </TableBody>
           </Table>
+          {isFetchingNextPage && (
+            <Table><TableBody>
+              {Array.from({ length: 3 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell><div className="h-4 w-28 bg-muted animate-pulse rounded" /></TableCell>
+                  <TableCell><div className="h-4 w-32 bg-muted animate-pulse rounded" /></TableCell>
+                  <TableCell><div className="h-4 w-24 bg-muted animate-pulse rounded" /></TableCell>
+                  <TableCell><div className="h-4 w-12 bg-muted animate-pulse rounded" /></TableCell>
+                  <TableCell><div className="h-4 w-20 bg-muted animate-pulse rounded" /></TableCell>
+                  <TableCell />
+                </TableRow>
+              ))}
+            </TableBody></Table>
+          )}
         </div>
+        {hasNextPage && <div ref={sentinelRef} className="h-1" />}
+        </>
       )}
 
       {/* Create Dialog */}

@@ -78,6 +78,24 @@ export function useSuppliers() {
   return useQuery({ queryKey: ["suppliers"], queryFn: () => apiFetch<any[]>("/api/suppliers") });
 }
 
+export function useInfiniteSuppliers(params?: { search?: string }) {
+  return useInfiniteQuery({
+    queryKey: ["suppliers", "infinite", params],
+    queryFn: ({ pageParam = 0 }) => {
+      const sp = new URLSearchParams();
+      sp.set("limit", "50");
+      sp.set("offset", String(pageParam));
+      if (params?.search) sp.set("search", params.search);
+      return apiFetch<{ data: any[]; total: number }>(`/api/suppliers?${sp.toString()}`);
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((s, p) => s + p.data.length, 0);
+      return loaded < lastPage.total ? loaded : undefined;
+    },
+  });
+}
+
 export function useCreateSupplier() {
   const qc = useQueryClient();
   return useMutation({
@@ -126,6 +144,27 @@ export function useProducts(params?: { search?: string; categoryId?: string; sup
   return useQuery({
     queryKey: ["products", params],
     queryFn: () => apiFetch<any[]>(`/api/products${query ? `?${query}` : ""}`),
+  });
+}
+
+export function useInfiniteProducts(params?: { search?: string; categoryId?: string; supplierId?: string; lowStock?: boolean }) {
+  return useInfiniteQuery({
+    queryKey: ["products", "infinite", params],
+    queryFn: ({ pageParam = 0 }) => {
+      const sp = new URLSearchParams();
+      sp.set("limit", "50");
+      sp.set("offset", String(pageParam));
+      if (params?.search) sp.set("search", params.search);
+      if (params?.categoryId) sp.set("categoryId", params.categoryId);
+      if (params?.supplierId) sp.set("supplierId", params.supplierId);
+      if (params?.lowStock) sp.set("lowStock", "true");
+      return apiFetch<{ data: any[]; total: number }>(`/api/products?${sp.toString()}`);
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((s, p) => s + p.data.length, 0);
+      return loaded < lastPage.total ? loaded : undefined;
+    },
   });
 }
 
@@ -316,6 +355,24 @@ export function useCustomers(search?: string) {
   });
 }
 
+export function useInfiniteCustomers(params?: { search?: string }) {
+  return useInfiniteQuery({
+    queryKey: ["customers", "infinite", params],
+    queryFn: ({ pageParam = 0 }) => {
+      const sp = new URLSearchParams();
+      sp.set("limit", "50");
+      sp.set("offset", String(pageParam));
+      if (params?.search) sp.set("search", params.search);
+      return apiFetch<{ data: any[]; total: number }>(`/api/customers?${sp.toString()}`);
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((s, p) => s + p.data.length, 0);
+      return loaded < lastPage.total ? loaded : undefined;
+    },
+  });
+}
+
 export function useCreateCustomer() {
   const qc = useQueryClient();
   return useMutation({
@@ -354,6 +411,25 @@ export function useOrders(params?: { search?: string; status?: string }) {
   return useQuery({
     queryKey: ["orders", params],
     queryFn: () => apiFetch<any[]>(`/api/orders${query ? `?${query}` : ""}`),
+  });
+}
+
+export function useInfiniteOrders(params?: { search?: string; status?: string }) {
+  return useInfiniteQuery({
+    queryKey: ["orders", "infinite", params],
+    queryFn: ({ pageParam = 0 }) => {
+      const sp = new URLSearchParams();
+      sp.set("limit", "50");
+      sp.set("offset", String(pageParam));
+      if (params?.search) sp.set("search", params.search);
+      if (params?.status) sp.set("status", params.status);
+      return apiFetch<{ data: any[]; total: number }>(`/api/orders?${sp.toString()}`);
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((s, p) => s + p.data.length, 0);
+      return loaded < lastPage.total ? loaded : undefined;
+    },
   });
 }
 

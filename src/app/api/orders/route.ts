@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { orders, orderLineItems, customers, products, productVariants } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { apiError, apiResponse, generateOrderNumber } from "@/lib/utils";
-import { desc, eq, ilike, and, sql } from "drizzle-orm";
+import { desc, eq, ilike, and, sql, count as drizzleCount } from "drizzle-orm";
 import { z } from "zod";
 
 const lineItemSchema = z.object({
@@ -43,31 +43,41 @@ export async function GET(req: NextRequest) {
   const conditions = [];
   if (status) conditions.push(eq(orders.status, status as "draft" | "pending" | "delivered" | "cancelled"));
 
-  const rows = await db
-    .select({
-      id: orders.id,
-      orderNumber: orders.orderNumber,
-      customerId: orders.customerId,
-      orderDate: orders.orderDate,
-      status: orders.status,
-      totalAmount: orders.totalAmount,
-      totalCost: orders.totalCost,
-      profit: orders.profit,
-      shippingFee: orders.shippingFee,
-      shippingDiscount: orders.shippingDiscount,
-      shippingDiscountReason: orders.shippingDiscountReason,
-      notes: orders.notes,
-      customerFeedback: orders.customerFeedback,
-      createdAt: orders.createdAt,
-      customerName: customers.name,
-      customerPhone: customers.phone,
-    })
-    .from(orders)
-    .leftJoin(customers, eq(orders.customerId, customers.id))
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(desc(orders.createdAt));
+  const limit = Math.min(parseInt(searchParams.get("limit") ?? "50", 10) || 50, 200);
+  const offset = parseInt(searchParams.get("offset") ?? "0", 10) || 0;
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-  return apiResponse(rows);
+  const [rows, [{ total }]] = await Promise.all([
+    db
+      .select({
+        id: orders.id,
+        orderNumber: orders.orderNumber,
+        customerId: orders.customerId,
+        orderDate: orders.orderDate,
+        status: orders.status,
+        totalAmount: orders.totalAmount,
+        totalCost: orders.totalCost,
+        profit: orders.profit,
+        shippingFee: orders.shippingFee,
+        shippingDiscount: orders.shippingDiscount,
+        shippingDiscountReason: orders.shippingDiscountReason,
+        notes: orders.notes,
+        customerFeedback: orders.customerFeedback,
+        createdAt: orders.createdAt,
+        customerName: customers.name,
+        customerPhone: customers.phone,
+      })
+      .from(orders)
+      .leftJoin(customers, eq(orders.customerId, customers.id))
+      .where(whereClause)
+      .orderBy(desc(orders.createdAt))
+      .limit(limit)
+      .offset(offset),
+
+    db.select({ total: sql<number>`COUNT(*)::int` }).from(orders).where(whereClause),
+  ]);
+
+  return apiResponse({ data: rows, total });
 }
 
 export async function POST(req: NextRequest) {

@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
-  useOrders,
+  useInfiniteOrders,
   useCreateOrder,
   useUpdateOrder,
   useDeleteOrder,
@@ -484,12 +484,32 @@ export default function OrdersPage() {
   const [editOrder, setEditOrder] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const { data: orders = [], isLoading } = useOrders({
+  const {
+    data: ordersData,
+    isLoading,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = useInfiniteOrders({
     status: activeTab !== "all" ? activeTab : undefined,
   });
+  const orders = useMemo(() => ordersData?.pages.flatMap((p) => p.data) ?? [], [ordersData]);
 
   const updateOrder = useUpdateOrder();
   const deleteOrder = useDeleteOrder();
+
+  // Infinite scroll
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !hasNextPage) return;
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting && !isFetchingNextPage) fetchNextPage(); },
+      { rootMargin: "300px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   // Summary
   const summary = useMemo(() => {
@@ -580,10 +600,19 @@ export default function OrdersPage() {
 
       {/* Table */}
       {isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-14 animate-pulse rounded-lg bg-muted" />
-          ))}
+        <div className="rounded-xl border overflow-hidden">
+          <Table><TableBody>
+            {Array.from({ length: 8 }).map((_, i) => (
+              <TableRow key={i}>
+                <TableCell><div className="h-4 w-24 bg-muted animate-pulse rounded" /></TableCell>
+                <TableCell><div className="h-4 w-28 bg-muted animate-pulse rounded" /></TableCell>
+                <TableCell><div className="h-4 w-20 bg-muted animate-pulse rounded" /></TableCell>
+                <TableCell><div className="h-5 w-16 bg-muted animate-pulse rounded-full" /></TableCell>
+                <TableCell><div className="h-4 w-16 bg-muted animate-pulse rounded" /></TableCell>
+                <TableCell />
+              </TableRow>
+            ))}
+          </TableBody></Table>
         </div>
       ) : (orders as any[]).length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-20 text-center">
@@ -602,6 +631,7 @@ export default function OrdersPage() {
           )}
         </div>
       ) : (
+        <>
         <div className="rounded-xl border overflow-hidden">
           <Table>
             <TableHeader>
@@ -692,7 +722,23 @@ export default function OrdersPage() {
               })}
             </TableBody>
           </Table>
+          {isFetchingNextPage && (
+            <Table><TableBody>
+              {Array.from({ length: 3 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell><div className="h-4 w-24 bg-muted animate-pulse rounded" /></TableCell>
+                  <TableCell><div className="h-4 w-28 bg-muted animate-pulse rounded" /></TableCell>
+                  <TableCell><div className="h-4 w-20 bg-muted animate-pulse rounded" /></TableCell>
+                  <TableCell><div className="h-5 w-16 bg-muted animate-pulse rounded-full" /></TableCell>
+                  <TableCell><div className="h-4 w-16 bg-muted animate-pulse rounded" /></TableCell>
+                  <TableCell />
+                </TableRow>
+              ))}
+            </TableBody></Table>
+          )}
         </div>
+        {hasNextPage && <div ref={sentinelRef} className="h-1" />}
+        </>
       )}
 
       {/* Create Dialog */}

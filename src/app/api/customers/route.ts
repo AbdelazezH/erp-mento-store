@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { customers, orders } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { apiError, apiResponse } from "@/lib/utils";
-import { asc, count, sum, eq, ilike } from "drizzle-orm";
+import { asc, count, sum, eq, ilike, sql } from "drizzle-orm";
 import { z } from "zod";
 
 const createSchema = z.object({
@@ -20,26 +20,36 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = req.nextUrl;
   const search = searchParams.get("search") ?? "";
+  const limit = Math.min(parseInt(searchParams.get("limit") ?? "50", 10) || 50, 200);
+  const offset = parseInt(searchParams.get("offset") ?? "0", 10) || 0;
 
-  const rows = await db
-    .select({
-      id: customers.id,
-      name: customers.name,
-      email: customers.email,
-      phone: customers.phone,
-      address: customers.address,
-      notes: customers.notes,
-      createdAt: customers.createdAt,
-      orderCount: count(orders.id),
-      totalSpend: sum(orders.totalAmount),
-    })
-    .from(customers)
-    .leftJoin(orders, eq(orders.customerId, customers.id))
-    .where(search ? ilike(customers.name, `%${search}%`) : undefined)
-    .groupBy(customers.id)
-    .orderBy(asc(customers.name));
+  const whereClause = search ? ilike(customers.name, `%${search}%`) : undefined;
 
-  return apiResponse(rows);
+  const [rows, [{ total }]] = await Promise.all([
+    db
+      .select({
+        id: customers.id,
+        name: customers.name,
+        email: customers.email,
+        phone: customers.phone,
+        address: customers.address,
+        notes: customers.notes,
+        createdAt: customers.createdAt,
+        orderCount: count(orders.id),
+        totalSpend: sum(orders.totalAmount),
+      })
+      .from(customers)
+      .leftJoin(orders, eq(orders.customerId, customers.id))
+      .where(whereClause)
+      .groupBy(customers.id)
+      .orderBy(asc(customers.name))
+      .limit(limit)
+      .offset(offset),
+
+    db.select({ total: sql<number>`COUNT(*)::int` }).from(customers).where(whereClause),
+  ]);
+
+  return apiResponse({ data: rows, total });
 }
 
 export async function POST(req: NextRequest) {
