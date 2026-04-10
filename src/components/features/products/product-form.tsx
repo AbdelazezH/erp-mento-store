@@ -926,7 +926,7 @@ function CostHistoryTab({ productId }: { productId?: string }) {
               <TableHead>Date</TableHead>
               <TableHead>Supplier</TableHead>
               <TableHead className="text-right">Qty</TableHead>
-              <TableHead className="text-right">Unit Price</TableHead>
+              <TableHead className="text-right">Actual Price</TableHead>
               <TableHead className="text-right">Discount</TableHead>
               <TableHead className="text-right">Unit Cost</TableHead>
               <TableHead className="text-right">Line Total</TableHead>
@@ -943,7 +943,16 @@ function CostHistoryTab({ productId }: { productId?: string }) {
               const unitCost = qty > 0 ? lineTotal / qty : 0;
               return (
                 <TableRow key={`${row.billId}`}>
-                  <TableCell className="font-mono text-sm">{row.billNumber}</TableCell>
+                  <TableCell className="font-mono text-sm">
+                    <a
+                      href={`/bills/${row.billId}/edit`}
+                      className="text-primary hover:underline"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {row.billNumber}
+                    </a>
+                  </TableCell>
                   <TableCell className="text-sm">{row.issueDate ? formatDate(row.issueDate) : "—"}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{row.supplierName ?? "—"}</TableCell>
                   <TableCell className="text-right tabular-nums text-sm">{parseFloat(row.quantity ?? "0").toLocaleString()}</TableCell>
