@@ -54,8 +54,10 @@ import {
   ChevronUp,
   ChevronsUpDown,
   User,
+  Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PAID_BY_OPTIONS } from "@/components/features/invoices/invoice-form";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -101,6 +103,43 @@ const CARD_PALETTES = [
   { bg: "bg-yellow-50", border: "border-yellow-100", name: "text-yellow-600", amount: "text-yellow-700" },
   { bg: "bg-red-50",    border: "border-red-100",    name: "text-red-500",    amount: "text-red-600" },
 ];
+
+// ─── Date Preset Helpers ──────────────────────────────────────────────────────
+
+const DATE_PRESETS = [
+  { key: "all",        label: "All time" },
+  { key: "week",       label: "This Week" },
+  { key: "month",      label: "This Month" },
+  { key: "last_month", label: "Last Month" },
+  { key: "year",       label: "This Year" },
+  { key: "custom",     label: "Custom" },
+];
+
+function getPresetRange(preset: string): { from: string; to: string } {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const fmt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const today = fmt(now);
+  if (preset === "week") {
+    const day = now.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    const mon = new Date(now);
+    mon.setDate(now.getDate() + diff);
+    return { from: fmt(mon), to: today };
+  }
+  if (preset === "month") {
+    return { from: fmt(new Date(now.getFullYear(), now.getMonth(), 1)), to: today };
+  }
+  if (preset === "last_month") {
+    const first = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const last = new Date(now.getFullYear(), now.getMonth(), 0);
+    return { from: fmt(first), to: fmt(last) };
+  }
+  if (preset === "year") {
+    return { from: `${now.getFullYear()}-01-01`, to: today };
+  }
+  return { from: "", to: "" };
+}
 
 // ─── Inline Status Dropdown ───────────────────────────────────────────────────
 
@@ -155,8 +194,10 @@ export default function InvoicesPage() {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [datePreset, setDatePreset] = useState<"all"|"week"|"month"|"last_month"|"year"|"custom">("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [payerFilter, setPayerFilter] = useState("all");
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [dateSortDir, setDateSortDir] = useState<"asc" | "desc">("desc");
@@ -186,6 +227,12 @@ export default function InvoicesPage() {
       list = list.filter((b) => b.issueDate && new Date(b.issueDate) <= to);
     }
 
+    if (payerFilter !== "all") {
+      list = list.filter((b) =>
+        b.paidBy === payerFilter || b.firstPayerName === payerFilter
+      );
+    }
+
     list = [...list].sort((a, b) => {
       const aTime = a.issueDate ? new Date(a.issueDate).getTime() : 0;
       const bTime = b.issueDate ? new Date(b.issueDate).getTime() : 0;
@@ -193,7 +240,7 @@ export default function InvoicesPage() {
     });
 
     return list;
-  }, [rawBills, typeFilter, dateFrom, dateTo, dateSortDir]);
+  }, [rawBills, typeFilter, dateFrom, dateTo, payerFilter, dateSortDir]);
 
   // Counts per type (from rawBills, ignoring type filter, respecting date filter)
   const typeCounts = useMemo(() => {
@@ -267,10 +314,10 @@ export default function InvoicesPage() {
         </div>
       ) : null}
 
-      {/* Filter bar: search + pills + date range */}
+      {/* Filter bar: search + dropdowns + pills */}
       <div className="space-y-3">
-        {/* Row 1: search left, date range right */}
-        <div className="flex items-center gap-3">
+        {/* Row 1: search + date preset + payer */}
+        <div className="flex items-center gap-2">
           <div className="relative flex-1 max-w-xs">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <Input
@@ -281,7 +328,70 @@ export default function InvoicesPage() {
             />
           </div>
 
-          <div className="ml-auto flex items-center gap-2">
+          {/* Date preset dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-3 h-9 text-sm font-medium hover:bg-muted transition-colors whitespace-nowrap">
+                <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                {DATE_PRESETS.find((p) => p.key === datePreset)?.label ?? "All time"}
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-40">
+              {DATE_PRESETS.map(({ key, label }) => (
+                <DropdownMenuItem
+                  key={key}
+                  className="flex items-center justify-between"
+                  onClick={() => {
+                    setDatePreset(key as any);
+                    if (key !== "custom") {
+                      const { from, to } = getPresetRange(key);
+                      setDateFrom(from);
+                      setDateTo(to);
+                    }
+                  }}
+                >
+                  {label}
+                  {datePreset === key && <Check className="h-3.5 w-3.5 text-primary" />}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Payer dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-3 h-9 text-sm font-medium hover:bg-muted transition-colors whitespace-nowrap">
+                <User className="h-3.5 w-3.5 text-muted-foreground" />
+                {payerFilter === "all" ? "All Payers" : payerFilter}
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-44">
+              <DropdownMenuItem
+                className="flex items-center justify-between"
+                onClick={() => setPayerFilter("all")}
+              >
+                All Payers
+                {payerFilter === "all" && <Check className="h-3.5 w-3.5 text-primary" />}
+              </DropdownMenuItem>
+              {PAID_BY_OPTIONS.map((name) => (
+                <DropdownMenuItem
+                  key={name}
+                  className="flex items-center justify-between"
+                  onClick={() => setPayerFilter(name)}
+                >
+                  {name}
+                  {payerFilter === name && <Check className="h-3.5 w-3.5 text-primary" />}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {/* Custom date inputs — only shown when preset = "custom" */}
+        {datePreset === "custom" && (
+          <div className="flex items-center gap-2">
             <CalendarIcon className="h-4 w-4 text-muted-foreground shrink-0" />
             <Input
               type="date"
@@ -296,16 +406,14 @@ export default function InvoicesPage() {
               onChange={(e) => setDateTo(e.target.value)}
               className="w-36 h-9 text-sm"
             />
-            {(dateFrom || dateTo) && (
-              <button
-                onClick={() => { setDateFrom(""); setDateTo(""); }}
-                className="text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
+            <button
+              onClick={() => { setDatePreset("all"); setDateFrom(""); setDateTo(""); }}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
-        </div>
+        )}
 
         {/* Row 2: type filter pills */}
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -348,11 +456,11 @@ export default function InvoicesPage() {
           <Receipt className="mb-4 h-12 w-12 text-muted-foreground/40" />
           <h3 className="text-lg font-semibold">No invoices found</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            {search || typeFilter !== "all" || dateFrom || dateTo
+            {search || typeFilter !== "all" || dateFrom || dateTo || payerFilter !== "all"
               ? "Try adjusting your filters."
               : "Get started by recording your first invoice."}
           </p>
-          {!search && typeFilter === "all" && !dateFrom && !dateTo && (
+          {!search && typeFilter === "all" && !dateFrom && !dateTo && payerFilter === "all" && (
             <Button className="mt-4" onClick={() => router.push("/bills/new")}>
               <Plus className="mr-2 h-4 w-4" />
               New Invoice
