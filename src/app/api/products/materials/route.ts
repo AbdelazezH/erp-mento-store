@@ -9,7 +9,7 @@ export async function GET() {
   if (!session.userId) return apiError("Unauthorized", 401);
 
   const rows = await db
-    .selectDistinct({ material: products.material })
+    .selectDistinct({ material: products.material, _sort: sql<string>`lower(${products.material})` })
     .from(products)
     .where(isNotNull(products.material))
     .orderBy(sql`lower(${products.material})`);
