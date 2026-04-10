@@ -960,7 +960,7 @@ export function InvoiceForm({
                           <span className="text-xs text-muted-foreground w-5 text-center shrink-0">%</span>
                           <Input
                             type="number"
-                            step="0.01"
+                            step="any"
                             min="0"
                             max="100"
                             {...register(`items.${idx}.discountPercent`)}
