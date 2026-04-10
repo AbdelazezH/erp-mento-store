@@ -20,6 +20,7 @@ import {
   useSyncVariants,
   useMaterials,
   useSaveGallery,
+  useProductCostHistory,
 } from "@/hooks/use-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +29,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Select,
   SelectContent,
@@ -46,7 +48,7 @@ import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { ImageUpload } from "./image-upload";
 import { Plus, X, ChevronDown, Images, Upload } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency, formatDate } from "@/lib/utils";
 
 // ─── Schema ──────────────────────────────────────────────────────────────────
 
@@ -865,6 +867,95 @@ function VariantCard({
           {!variant.sellingPrice && productSellingPrice != null && (
             <p className="text-xs text-muted-foreground">Uses product price: L.E {productSellingPrice}</p>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Cost History Tab ────────────────────────────────────────────────────────
+
+function CostHistoryTab({ productId }: { productId?: string }) {
+  const { data: history = [], isLoading } = useProductCostHistory(productId ?? "");
+
+  if (!productId) {
+    return (
+      <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16 text-center">
+        <p className="text-muted-foreground text-sm">Save the product first to see cost history.</p>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-2">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="h-10 bg-muted animate-pulse rounded" />
+        ))}
+      </div>
+    );
+  }
+
+  if (history.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16 text-center">
+        <p className="text-muted-foreground text-sm">Cost history will appear here once purchase bills are linked to this product.</p>
+      </div>
+    );
+  }
+
+  // Calculate weighted average cost
+  let totalWeighted = 0;
+  let totalQty = 0;
+  for (const row of history) {
+    const qty = parseFloat(row.quantity ?? "0");
+    const unit = parseFloat(row.unitPrice ?? "0");
+    totalWeighted += qty * unit;
+    totalQty += qty;
+  }
+  const avgCost = totalQty > 0 ? totalWeighted / totalQty : 0;
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg border overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Bill #</TableHead>
+              <TableHead>Date</TableHead>
+              <TableHead>Supplier</TableHead>
+              <TableHead className="text-right">Qty</TableHead>
+              <TableHead className="text-right">Unit Price</TableHead>
+              <TableHead className="text-right">Discount</TableHead>
+              <TableHead className="text-right">Line Total</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {history.map((row: any) => {
+              const disc = parseFloat(row.discountPercent ?? "0");
+              const discLabel = row.discountType === "fixed"
+                ? disc > 0 ? `−${formatCurrency(disc)}` : "—"
+                : disc > 0 ? `${disc}%` : "—";
+              return (
+                <TableRow key={`${row.billId}`}>
+                  <TableCell className="font-mono text-sm">{row.billNumber}</TableCell>
+                  <TableCell className="text-sm">{row.issueDate ? formatDate(row.issueDate) : "—"}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{row.supplierName ?? "—"}</TableCell>
+                  <TableCell className="text-right tabular-nums text-sm">{parseFloat(row.quantity ?? "0").toLocaleString()}</TableCell>
+                  <TableCell className="text-right tabular-nums text-sm">{formatCurrency(row.unitPrice)}</TableCell>
+                  <TableCell className="text-right tabular-nums text-sm text-muted-foreground">{discLabel}</TableCell>
+                  <TableCell className="text-right tabular-nums text-sm font-medium">{formatCurrency(row.total)}</TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+
+      <div className="flex justify-end">
+        <div className="rounded-lg bg-muted/50 border px-4 py-3 text-sm flex items-center gap-3">
+          <span className="text-muted-foreground">Weighted Avg Cost</span>
+          <span className="font-bold tabular-nums text-base">{formatCurrency(avgCost)}</span>
         </div>
       </div>
     </div>
@@ -1845,9 +1936,7 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
 
           {/* ── Cost History Tab ── */}
           <TabsContent value="costHistory" className="mt-0 p-6">
-            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16 text-center">
-              <p className="text-muted-foreground text-sm">Cost history will appear here once purchase bills are linked to this product.</p>
-            </div>
+            <CostHistoryTab productId={productId} />
           </TabsContent>
         </Tabs>
 

@@ -105,6 +105,14 @@ export function useDeleteSupplier() {
   });
 }
 
+export function useSupplier(id: string) {
+  return useQuery({
+    queryKey: ["suppliers", id],
+    queryFn: () => apiFetch<any>(`/api/suppliers/${id}`),
+    enabled: !!id,
+  });
+}
+
 // ─── Products ─────────────────────────────────────────────────────────────────
 
 export function useProducts(params?: { search?: string; categoryId?: string; supplierId?: string; lowStock?: boolean }) {
@@ -158,6 +166,14 @@ export function useDeleteProduct() {
 
 export function useMaterials() {
   return useQuery({ queryKey: ["materials"], queryFn: () => apiFetch<string[]>("/api/products/materials") });
+}
+
+export function useProductCostHistory(id: string) {
+  return useQuery({
+    queryKey: ["products", id, "cost-history"],
+    queryFn: () => apiFetch<any[]>(`/api/products/${id}/cost-history`),
+    enabled: !!id,
+  });
 }
 
 export function useSyncVariants() {

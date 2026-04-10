@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { bills, billLineItems, billPayers, suppliers } from "@/lib/db/schema";
+import { bills, billLineItems, billPayers, suppliers, products } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { apiError, apiResponse, generateBillNumber } from "@/lib/utils";
-import { desc, eq, ilike, and } from "drizzle-orm";
+import { desc, eq, ilike, and, sum, sql } from "drizzle-orm";
 import { z } from "zod";
 
 const lineItemSchema = z.object({
@@ -13,8 +13,29 @@ const lineItemSchema = z.object({
   quantity: z.string().default("1"),
   unitPrice: z.string(),
   discountPercent: z.string().default("0"),
+  discountType: z.enum(["percent", "fixed"]).default("percent"),
   total: z.string(),
 });
+
+async function updateProductAverageCosts(productIds: string[]) {
+  const unique = [...new Set(productIds.filter(Boolean))];
+  for (const productId of unique) {
+    const [result] = await db
+      .select({
+        weightedSum: sum(sql`${billLineItems.quantity}::numeric * ${billLineItems.unitPrice}::numeric`),
+        totalQty: sum(sql`${billLineItems.quantity}::numeric`),
+      })
+      .from(billLineItems)
+      .where(eq(billLineItems.productId, productId));
+
+    const weightedSum = parseFloat(result?.weightedSum ?? "0");
+    const totalQty = parseFloat(result?.totalQty ?? "0");
+    if (totalQty > 0) {
+      const avgCost = (weightedSum / totalQty).toFixed(2);
+      await db.update(products).set({ averageCost: avgCost }).where(eq(products.id, productId));
+    }
+  }
+}
 
 const payerSchema = z.object({
   personName: z.string().min(1),
@@ -105,6 +126,8 @@ export async function POST(req: NextRequest) {
         billId: bill.id,
       }))
     );
+    const productIds = lineItems.map((i) => i.productId).filter(Boolean) as string[];
+    if (productIds.length > 0) await updateProductAverageCosts(productIds);
   }
 
   if (payers && payers.length > 0) {

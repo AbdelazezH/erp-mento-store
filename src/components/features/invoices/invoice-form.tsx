@@ -53,6 +53,7 @@ import {
   Copy,
   ImageIcon,
   ChevronDown,
+  Download,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -83,7 +84,8 @@ const lineItemSchema = z.object({
   description: z.string().min(1, "Required"),
   quantity: z.coerce.number().min(0.01, "Must be > 0"),
   unitPrice: z.coerce.number().min(0, "Must be >= 0"),
-  discountPercent: z.coerce.number().min(0).max(100).default(0),
+  discountPercent: z.coerce.number().min(0).default(0),
+  discountType: z.enum(["percent", "fixed"]).default("percent"),
 });
 
 const invoiceSchema = z.object({
@@ -110,7 +112,8 @@ type InvoiceFormValues = z.infer<typeof invoiceSchema>;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function calcLineTotal(qty: number, unit: number, disc: number) {
+function calcLineTotal(qty: number, unit: number, disc: number, discountType: "percent" | "fixed" = "percent") {
+  if (discountType === "fixed") return Math.max(0, qty * unit - disc);
   return qty * unit * (1 - disc / 100);
 }
 
@@ -292,6 +295,17 @@ function ReceiptDropZone({
             <p className="text-sm font-medium">Receipt uploaded</p>
             <p className="text-xs text-muted-foreground">Click to change or drag a new image</p>
           </div>
+          <a
+            href={value}
+            download
+            target="_blank"
+            rel="noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-muted shrink-0"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Download
+          </a>
           <Button
             type="button"
             variant="ghost"
@@ -346,7 +360,7 @@ export function InvoiceForm({
       status: "pending",
       issueDate: today(),
       dueDate: today(),
-      items: [{ mode: "text", productId: null, description: "", quantity: 1, unitPrice: 0, discountPercent: 0 }],
+      items: [{ mode: "text", productId: null, description: "", quantity: 1, unitPrice: 0, discountPercent: 0, discountType: "percent" as const }],
       ...defaultValues,
     },
   });
@@ -369,6 +383,7 @@ export function InvoiceForm({
 
   // Bulk discount
   const [bulkDiscount, setBulkDiscount] = useState("");
+  const [bulkDiscountType, setBulkDiscountType] = useState<"percent" | "fixed">("percent");
 
   // Totals
   const { subTotal, totalDiscount, grandTotal } = useMemo(() => {
@@ -379,8 +394,13 @@ export function InvoiceForm({
       const qty = Number(item.quantity) || 0;
       const unit = Number(item.unitPrice) || 0;
       const disc = Number(item.discountPercent) || 0;
+      const dtype = item.discountType ?? "percent";
       subTotal += qty * unit;
-      totalDiscount += qty * unit * (disc / 100);
+      if (dtype === "fixed") {
+        totalDiscount += Math.min(disc, qty * unit);
+      } else {
+        totalDiscount += qty * unit * (disc / 100);
+      }
     });
     return { subTotal, totalDiscount, grandTotal: subTotal - totalDiscount };
   }, [watchedItems]);
@@ -404,13 +424,17 @@ export function InvoiceForm({
       const qty = Number(item.quantity);
       const unit = Number(item.unitPrice);
       const disc = Number(item.discountPercent) || 0;
-      const total = qty * unit * (1 - disc / 100);
+      const dtype = item.discountType ?? "percent";
+      const total = dtype === "fixed"
+        ? Math.max(0, qty * unit - disc)
+        : qty * unit * (1 - disc / 100);
       return {
         productId: item.mode === "product" ? (item.productId ?? null) : null,
         description: item.description,
         quantity: String(qty),
         unitPrice: String(unit),
         discountPercent: String(disc),
+        discountType: dtype,
         total: total.toFixed(2),
       };
     });
@@ -727,18 +751,31 @@ export function InvoiceForm({
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <div className="flex items-center gap-1.5">
-                <Label className="text-xs text-muted-foreground whitespace-nowrap">Bulk Disc %</Label>
+                <Label className="text-xs text-muted-foreground whitespace-nowrap">Bulk Disc</Label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newType = bulkDiscountType === "percent" ? "fixed" : "percent";
+                    setBulkDiscountType(newType);
+                    fields.forEach((_, i) => setValue(`items.${i}.discountType`, newType));
+                  }}
+                  className="text-xs font-medium px-1.5 py-0.5 rounded bg-muted hover:bg-muted/80 transition-colors w-8 text-center shrink-0"
+                >
+                  {bulkDiscountType === "percent" ? "%" : "L.E"}
+                </button>
                 <Input
                   type="number"
                   min={0}
-                  max={100}
                   step={0.01}
                   placeholder="0"
                   value={bulkDiscount}
                   onChange={(e) => {
                     setBulkDiscount(e.target.value);
                     const v = parseFloat(e.target.value) || 0;
-                    fields.forEach((_, i) => setValue(`items.${i}.discountPercent`, v));
+                    fields.forEach((_, i) => {
+                      setValue(`items.${i}.discountPercent`, v);
+                      setValue(`items.${i}.discountType`, bulkDiscountType);
+                    });
                   }}
                   className="w-20 h-8 text-sm"
                 />
@@ -755,6 +792,7 @@ export function InvoiceForm({
                     quantity: 1,
                     unitPrice: 0,
                     discountPercent: 0,
+                    discountType: "percent",
                   })
                 }
               >
@@ -776,7 +814,7 @@ export function InvoiceForm({
                   <TableHead>Product / Description</TableHead>
                   <TableHead className="w-24">Qty</TableHead>
                   <TableHead className="w-28">Unit Price</TableHead>
-                  <TableHead className="w-24">Disc %</TableHead>
+                  <TableHead className="w-28">Discount</TableHead>
                   <TableHead className="w-28 text-right">Total</TableHead>
                   <TableHead className="w-16"></TableHead>
                 </TableRow>
@@ -787,7 +825,10 @@ export function InvoiceForm({
                   const qty = Number(item?.quantity) || 0;
                   const unit = Number(item?.unitPrice) || 0;
                   const disc = Number(item?.discountPercent) || 0;
-                  const lineTotal = qty * unit * (1 - disc / 100);
+                  const discountType = item?.discountType ?? "percent";
+                  const lineTotal = discountType === "fixed"
+                    ? Math.max(0, qty * unit - disc)
+                    : qty * unit * (1 - disc / 100);
                   const mode = item?.mode ?? "text";
 
                   return (
@@ -877,14 +918,26 @@ export function InvoiceForm({
                       </TableCell>
 
                       <TableCell className="py-2">
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          max="100"
-                          {...register(`items.${idx}.discountPercent`)}
-                          className="h-8 text-sm"
-                        />
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newType = discountType === "percent" ? "fixed" : "percent";
+                              setValue(`items.${idx}.discountType`, newType);
+                            }}
+                            className="text-xs font-medium px-1 py-0.5 rounded bg-muted hover:bg-muted/80 transition-colors w-8 text-center shrink-0"
+                          >
+                            {discountType === "percent" ? "%" : "L.E"}
+                          </button>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            {...(discountType === "percent" ? { max: "100" } : {})}
+                            {...register(`items.${idx}.discountPercent`)}
+                            className="h-8 text-sm"
+                          />
+                        </div>
                       </TableCell>
 
                       <TableCell className="py-2 text-right font-medium tabular-nums text-sm">

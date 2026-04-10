@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { bills, billLineItems, billPayers, suppliers, products, productVariants } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { apiError, apiResponse } from "@/lib/utils";
-import { eq } from "drizzle-orm";
+import { eq, sum, sql } from "drizzle-orm";
 import { z } from "zod";
 
 const lineItemSchema = z.object({
@@ -14,8 +14,29 @@ const lineItemSchema = z.object({
   quantity: z.string().default("1"),
   unitPrice: z.string(),
   discountPercent: z.string().default("0"),
+  discountType: z.enum(["percent", "fixed"]).default("percent"),
   total: z.string(),
 });
+
+async function updateProductAverageCosts(productIds: string[]) {
+  const unique = [...new Set(productIds.filter(Boolean))];
+  for (const productId of unique) {
+    const [result] = await db
+      .select({
+        weightedSum: sum(sql`${billLineItems.quantity}::numeric * ${billLineItems.unitPrice}::numeric`),
+        totalQty: sum(sql`${billLineItems.quantity}::numeric`),
+      })
+      .from(billLineItems)
+      .where(eq(billLineItems.productId, productId));
+
+    const weightedSum = parseFloat(result?.weightedSum ?? "0");
+    const totalQty = parseFloat(result?.totalQty ?? "0");
+    if (totalQty > 0) {
+      const avgCost = (weightedSum / totalQty).toFixed(2);
+      await db.update(products).set({ averageCost: avgCost }).where(eq(products.id, productId));
+    }
+  }
+}
 
 const payerSchema = z.object({
   personName: z.string().min(1),
@@ -73,6 +94,7 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
       quantity: billLineItems.quantity,
       unitPrice: billLineItems.unitPrice,
       discountPercent: billLineItems.discountPercent,
+      discountType: billLineItems.discountType,
       total: billLineItems.total,
       productName: products.name,
       variantName: productVariants.name,
@@ -118,6 +140,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       await db.insert(billLineItems).values(
         lineItems.map(({ id: _, ...item }) => ({ ...item, billId: id }))
       );
+      const productIds = lineItems.map((i) => i.productId).filter(Boolean) as string[];
+      if (productIds.length > 0) await updateProductAverageCosts(productIds);
     }
   }
 

@@ -211,6 +211,7 @@ export const billLineItems = pgTable("bill_line_items", {
   quantity: numeric("quantity", { precision: 12, scale: 3 }).notNull().default("1"),
   unitPrice: numeric("unit_price", { precision: 12, scale: 2 }).notNull(),
   discountPercent: numeric("discount_percent", { precision: 5, scale: 2 }).default("0"),
+  discountType: text("discount_type").notNull().default("percent"),
   total: numeric("total", { precision: 12, scale: 2 }).notNull(),
 });
 

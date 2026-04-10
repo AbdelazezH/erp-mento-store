@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -211,6 +212,7 @@ function SupplierFormDialog({
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function SuppliersPage() {
+  const router = useRouter();
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [editSupplier, setEditSupplier] = useState<any | null>(null);
@@ -301,7 +303,14 @@ export default function SuppliersPage() {
               {filtered.map((supplier) => (
                 <TableRow key={supplier.id}>
                   {/* Name */}
-                  <TableCell className="font-medium">{supplier.name}</TableCell>
+                  <TableCell className="font-medium">
+                    <button
+                      onClick={() => router.push(`/suppliers/${supplier.id}`)}
+                      className="hover:underline text-left"
+                    >
+                      {supplier.name}
+                    </button>
+                  </TableCell>
 
                   {/* Contact */}
                   <TableCell className="text-sm text-muted-foreground">

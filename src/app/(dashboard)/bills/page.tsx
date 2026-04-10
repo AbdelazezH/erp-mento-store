@@ -38,6 +38,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -54,6 +55,8 @@ import {
   Trash2,
   Receipt,
   ImageIcon,
+  Download,
+  X,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -337,14 +340,41 @@ export default function InvoicesPage() {
 
       {/* Receipt Image Lightbox */}
       <Dialog open={!!previewUrl} onOpenChange={(v) => !v && setPreviewUrl(null)}>
-        <DialogContent className="max-w-3xl p-2">
+        <DialogContent className="max-w-3xl p-0 overflow-hidden gap-0 [&>button]:hidden">
+          <DialogTitle className="sr-only">Receipt Preview</DialogTitle>
+          {/* Toolbar: download + close */}
+          <div className="flex items-center justify-between px-3 py-2 border-b bg-background">
+            <span className="text-sm font-medium text-muted-foreground">Receipt</span>
+            <div className="flex items-center gap-1">
+              {previewUrl && (
+                <a
+                  href={previewUrl}
+                  download
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1.5 rounded hover:bg-muted"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Download
+                </a>
+              )}
+              <button
+                onClick={() => setPreviewUrl(null)}
+                className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
           {previewUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={previewUrl}
-              alt="Receipt"
-              className="w-full h-auto max-h-[80vh] object-contain rounded"
-            />
+            <div className="p-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={previewUrl}
+                alt="Receipt"
+                className="w-full h-auto max-h-[80vh] object-contain rounded"
+              />
+            </div>
           )}
         </DialogContent>
       </Dialog>
