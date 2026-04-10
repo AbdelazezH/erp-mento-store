@@ -795,8 +795,8 @@ function VariantCard({
   galleryImages: string[];
 }) {
   const priceHint = productSellingPrice != null
-    ? `Default: L.E ${productSellingPrice}`
-    : "Same as product";
+    ? productSellingPrice.toFixed(2)
+    : "0.00";
 
   return (
     <div className="border rounded-lg p-4 space-y-3 relative">
@@ -861,12 +861,14 @@ function VariantCard({
             min="0"
             value={variant.sellingPrice}
             onChange={(e) => onChange({ sellingPrice: e.target.value })}
+            onBlur={(e) => {
+              if (!e.target.value && productSellingPrice != null) {
+                onChange({ sellingPrice: productSellingPrice.toFixed(2) });
+              }
+            }}
             placeholder={priceHint}
             className="h-8 text-sm"
           />
-          {!variant.sellingPrice && productSellingPrice != null && (
-            <p className="text-xs text-muted-foreground">Uses product price: L.E {productSellingPrice}</p>
-          )}
         </div>
       </div>
     </div>
@@ -1132,7 +1134,7 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
         sku: v.sku ?? "",
         barcode: v.barcode ?? "",
         imageUrl: v.imageUrl ?? "",
-        sellingPrice: v.sellingPrice ?? "",
+        sellingPrice: v.sellingPrice ?? String(initialData?.sellingPrice ?? ""),
         stockQuantity: v.stockQuantity ?? 0,
       }));
       setVariantDrafts(drafts);
@@ -1216,7 +1218,7 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
           sku: currentSku ? `${currentSku}-${combo.attributeValue}` : "",
           barcode: generateBarcode(),
           imageUrl: "",
-          sellingPrice: initialData?.sellingPrice ?? "",
+          sellingPrice: String(watch("sellingPrice") ?? initialData?.sellingPrice ?? ""),
           stockQuantity: 0,
         };
       });
