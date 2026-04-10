@@ -470,19 +470,44 @@ function GalleryUploadCell({
   async function handleFile(file: File) {
     setUploading(true);
     try {
-      const hash = await computeFileHash(file);
+      let hash: string;
+      try {
+        hash = await computeFileHash(file);
+      } catch (hashError) {
+        // Better error message for crypto.subtle failures (fixes issue #5)
+        console.error("Hash computation failed:", hashError);
+        toast.error(
+          "Could not process image. Please ensure you're on a secure connection (HTTPS)."
+        );
+        return;
+      }
+
       if (existingHashes.has(hash)) {
         toast.error("This image is already in the gallery");
         return;
       }
       const form = new FormData();
       form.append("file", file);
-      const res = await fetch("/api/uploads", { method: "POST", body: form });
-      if (!res.ok) throw new Error("Upload failed");
+      let res: Response;
+      try {
+        res = await fetch("/api/uploads", { method: "POST", body: form });
+      } catch (fetchError) {
+        // Network error
+        console.error("Upload network error:", fetchError);
+        toast.error("Network error. Please check your connection and try again.");
+        return;
+      }
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || `Upload failed (${res.status})`);
+      }
       const { url } = await res.json();
       onUpload(url, hash);
-    } catch {
-      toast.error("Upload failed");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Upload failed";
+      toast.error(message);
     } finally {
       setUploading(false);
     }
@@ -501,7 +526,12 @@ function GalleryUploadCell({
         className="hidden"
         onChange={(e) => {
           const files = Array.from(e.target.files ?? []);
-          files.forEach(handleFile);
+          // Process files sequentially to prevent race condition (fixes issue #4)
+          (async () => {
+            for (const file of files) {
+              await handleFile(file);
+            }
+          })();
           e.target.value = "";
         }}
       />
@@ -527,7 +557,7 @@ function MediaPickerDialog({
 }: {
   open: boolean;
   onClose: () => void;
-  onSelect: (url: string) => void;
+  onSelect: (url: string, hash?: string) => void;
   galleryImages: string[];
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -536,15 +566,40 @@ function MediaPickerDialog({
   async function handleFile(file: File) {
     setUploading(true);
     try {
+      // Compute hash before upload (fixes issue #3)
+      let hash: string;
+      try {
+        hash = await computeFileHash(file);
+      } catch (hashError) {
+        console.error("Hash computation failed:", hashError);
+        toast.error(
+          "Could not process image. Please ensure you're on a secure connection (HTTPS)."
+        );
+        return;
+      }
+
       const form = new FormData();
       form.append("file", file);
-      const res = await fetch("/api/uploads", { method: "POST", body: form });
-      if (!res.ok) throw new Error("Upload failed");
+      let res: Response;
+      try {
+        res = await fetch("/api/uploads", { method: "POST", body: form });
+      } catch (fetchError) {
+        console.error("Upload network error:", fetchError);
+        toast.error("Network error. Please check your connection and try again.");
+        return;
+      }
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || `Upload failed (${res.status})`);
+      }
       const { url } = await res.json();
-      onSelect(url);
+      onSelect(url, hash);
       onClose();
-    } catch {
-      toast.error("Upload failed");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Upload failed";
+      toast.error(message);
     } finally {
       setUploading(false);
     }
@@ -627,7 +682,7 @@ function ProductImagePicker({
   galleryImages,
 }: {
   value?: string | null;
-  onSelect: (url: string) => void;
+  onSelect: (url: string, hash?: string) => void;
   onRemove?: () => void;
   size?: "sm" | "md" | "lg";
   className?: string;
@@ -927,12 +982,42 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
   // ── Gallery state ──
   const [galleryImages, setGalleryImages] = useState<string[]>([]);
   const [galleryHashes, setGalleryHashes] = useState<Set<string>>(new Set());
+  const [galleryUrlHashes, setGalleryUrlHashes] = useState<Map<string, string>>(new Map());
 
+  // Compute hashes for initial gallery images on mount (fixes issue #2)
   useEffect(() => {
     if (initialData?.gallery?.length > 0) {
-      setGalleryImages(initialData.gallery.map((g: any) => g.imageUrl));
+      const urls = initialData.gallery.map((g: any) => g.imageUrl);
+      setGalleryImages(urls);
+
+      // Compute hashes for all initial images
+      Promise.all(
+        urls.map(async (url: string) => {
+          try {
+            // Fetch the image and compute its hash
+            const response = await fetch(url);
+            const blob = await response.blob();
+            const hash = await computeFileHash(new File([blob], "image"));
+            return { url, hash };
+          } catch {
+            // If we can't fetch/hash, skip it (network issue or CORS)
+            return null;
+          }
+        })
+      ).then((results) => {
+        const urlHashMap = new Map<string, string>();
+        const hashes = new Set<string>();
+        results.forEach((result) => {
+          if (result) {
+            urlHashMap.set(result.url, result.hash);
+            hashes.add(result.hash);
+          }
+        });
+        setGalleryUrlHashes(urlHashMap);
+        setGalleryHashes(hashes);
+      });
     }
-  }, [initialData]);
+  }, [initialData?.id]); // Use id instead of entire object (fixes issue #6)
 
   // ── Variants state ──
   const createAttribute = useCreateAttribute();
@@ -1499,9 +1584,18 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                   <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Product Image</h2>
                   <ProductImagePicker
                     value={imageUrl}
-                    onSelect={(url) => {
+                    onSelect={(url, hash) => {
                       setValue("imageUrl", url);
                       setGalleryImages((g) => (g.includes(url) ? g : [...g, url]));
+                      // Track hash if provided (fixes issue #3)
+                      if (hash) {
+                        setGalleryHashes((h) => {
+                          const newHashes = new Set(h);
+                          newHashes.add(hash);
+                          return newHashes;
+                        });
+                        setGalleryUrlHashes((m) => new Map([...m, [url, hash]]));
+                      }
                     }}
                     onRemove={() => setValue("imageUrl", null)}
                     size="lg"
@@ -1691,20 +1785,39 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                     existingHashes={galleryHashes}
                     onUpload={(url, hash) => {
                       setGalleryImages((g) => (g.includes(url) ? g : [...g, url]));
-                      setGalleryHashes((h) => new Set([...h, hash]));
+                      setGalleryHashes((h) => {
+                        const newHashes = new Set(h);
+                        newHashes.add(hash);
+                        return newHashes;
+                      });
+                      setGalleryUrlHashes((m) => new Map([...m, [url, hash]]));
                     }}
                   />
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                  {galleryImages.map((url, idx) => (
-                    <div key={idx} className="group relative aspect-square rounded-lg border overflow-hidden">
+                  {galleryImages.map((url) => (
+                    <div key={url} className="group relative aspect-square rounded-lg border overflow-hidden">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={url} alt={`Gallery ${idx + 1}`} className="h-full w-full object-cover" />
+                      <img src={url} alt="Gallery image" className="h-full w-full object-cover" />
                       <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                         <button
                           type="button"
-                          onClick={() => setGalleryImages((g) => g.filter((_, i) => i !== idx))}
+                          onClick={() => {
+                            setGalleryImages((g) => g.filter((u) => u !== url));
+                            // Also remove the hash when image is removed (fixes issue #1)
+                            setGalleryHashes((h) => {
+                              const hash = galleryUrlHashes.get(url);
+                              const newHashes = new Set(h);
+                              if (hash) newHashes.delete(hash);
+                              return newHashes;
+                            });
+                            setGalleryUrlHashes((m) => {
+                              const newMap = new Map(m);
+                              newMap.delete(url);
+                              return newMap;
+                            });
+                          }}
                           className="p-1.5 rounded-md bg-white/20 hover:bg-red-500/70 transition-colors"
                           title="Remove"
                         >
@@ -1717,7 +1830,12 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                     existingHashes={galleryHashes}
                     onUpload={(url, hash) => {
                       setGalleryImages((g) => (g.includes(url) ? g : [...g, url]));
-                      setGalleryHashes((h) => new Set([...h, hash]));
+                      setGalleryHashes((h) => {
+                        const newHashes = new Set(h);
+                        newHashes.add(hash);
+                        return newHashes;
+                      });
+                      setGalleryUrlHashes((m) => new Map([...m, [url, hash]]));
                     }}
                   />
                 </div>
