@@ -1,16 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   useBills,
   useBillStats,
   useDeleteBill,
+  useUpdateBill,
 } from "@/hooks/use-api";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -41,60 +41,108 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Plus,
   Search,
-  MoreHorizontal,
   Pencil,
   Trash2,
   Receipt,
   ImageIcon,
   Download,
   X,
+  CalendarIcon,
+  ChevronDown,
+  User,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type BillStatus = "pending" | "overdue" | "paid" | "cancelled";
 
-const BILL_TYPE_LABELS: Record<string, string> = {
-  supplier_bill: "Supplier Invoice",
-  operation_invoice: "Operation Invoice",
-  packaging_invoice: "Packaging Invoice",
-  shipping_invoice: "Shipping Invoice",
-  devices_invoice: "Devices Invoice",
-  website_invoice: "Website Invoice",
-  other_expense: "Other Expense",
+// Short labels used on filter pills
+const TYPE_PILL_LABELS: Record<string, string> = {
+  supplier_bill:      "Supplier Bill",
+  operation_invoice:  "Operation Bill",
+  packaging_invoice:  "Packaging Bill",
+  shipping_invoice:   "Shipping Bill",
+  devices_invoice:    "Devices Bill",
+  website_invoice:    "Website Service",
+  other_expense:      "Other Expense",
+};
+
+// Badge colours per bill type
+const TYPE_BADGE_STYLES: Record<string, string> = {
+  supplier_bill:      "bg-blue-50 text-blue-700 border-blue-200",
+  operation_invoice:  "bg-violet-50 text-violet-700 border-violet-200",
+  packaging_invoice:  "bg-emerald-50 text-emerald-700 border-emerald-200",
+  shipping_invoice:   "bg-indigo-50 text-indigo-700 border-indigo-200",
+  devices_invoice:    "bg-slate-100 text-slate-600 border-slate-200",
+  website_invoice:    "bg-pink-50 text-pink-700 border-pink-200",
+  other_expense:      "bg-orange-50 text-orange-700 border-orange-200",
+};
+
+// Status pill styles
+const STATUS_STYLES: Record<string, string> = {
+  pending:   "bg-yellow-50 text-yellow-700 border-yellow-200",
+  overdue:   "bg-red-50 text-red-700 border-red-200",
+  paid:      "bg-green-50 text-green-700 border-green-200",
+  cancelled: "bg-gray-100 text-gray-500 border-gray-200",
 };
 
 // Colors for per-person stat cards — cycling by index
 const CARD_PALETTES = [
-  { bg: "bg-blue-50", border: "border-blue-100", name: "text-blue-600", amount: "text-blue-700" },
+  { bg: "bg-blue-50",   border: "border-blue-100",   name: "text-blue-600",   amount: "text-blue-700" },
   { bg: "bg-purple-50", border: "border-purple-100", name: "text-purple-600", amount: "text-purple-700" },
-  { bg: "bg-green-50", border: "border-green-100", name: "text-green-600", amount: "text-green-700" },
+  { bg: "bg-green-50",  border: "border-green-100",  name: "text-green-600",  amount: "text-green-700" },
   { bg: "bg-yellow-50", border: "border-yellow-100", name: "text-yellow-600", amount: "text-yellow-700" },
-  { bg: "bg-red-50", border: "border-red-100", name: "text-red-500", amount: "text-red-600" },
+  { bg: "bg-red-50",    border: "border-red-100",    name: "text-red-500",    amount: "text-red-600" },
 ];
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Inline Status Dropdown ───────────────────────────────────────────────────
 
-function statusVariant(status: BillStatus) {
-  switch (status) {
-    case "pending": return "warning" as const;
-    case "overdue": return "destructive" as const;
-    case "paid": return "success" as const;
-    case "cancelled": return "secondary" as const;
-  }
-}
+function StatusDropdown({ bill }: { bill: any }) {
+  const updateBill = useUpdateBill();
+  const statuses: BillStatus[] = ["pending", "overdue", "paid", "cancelled"];
 
-function statusLabel(status: string) {
-  return status.charAt(0).toUpperCase() + status.slice(1);
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors hover:opacity-80",
+            STATUS_STYLES[bill.status] ?? STATUS_STYLES.cancelled
+          )}
+        >
+          {bill.status.charAt(0).toUpperCase() + bill.status.slice(1)}
+          <ChevronDown className="h-3 w-3 opacity-60" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-36">
+        {statuses.map((s) => (
+          <DropdownMenuItem
+            key={s}
+            className={cn(
+              "text-xs capitalize",
+              bill.status === s && "font-semibold"
+            )}
+            onClick={() => {
+              if (bill.status !== s) {
+                updateBill.mutate({ id: bill.id, status: s });
+              }
+            }}
+          >
+            <span className={cn(
+              "mr-2 h-2 w-2 rounded-full inline-block",
+              s === "paid" ? "bg-green-500" :
+              s === "pending" ? "bg-yellow-500" :
+              s === "overdue" ? "bg-red-500" : "bg-gray-400"
+            )} />
+            {s.charAt(0).toUpperCase() + s.slice(1)}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -102,26 +150,66 @@ function statusLabel(status: string) {
 export default function InvoicesPage() {
   const router = useRouter();
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-  const { data: bills = [], isLoading } = useBills({
+  // Fetch all bills (server-side search only; type/date filtered client-side for pill counts)
+  const { data: rawBills = [], isLoading } = useBills({
     search: search || undefined,
-    status: statusFilter !== "all" ? statusFilter : undefined,
-    billType: typeFilter !== "all" ? typeFilter : undefined,
   });
-
   const { data: stats = [], isLoading: statsLoading } = useBillStats();
-
   const deleteBill = useDeleteBill();
+
+  // Client-side filtering
+  const bills = useMemo(() => {
+    let list = rawBills as any[];
+
+    if (typeFilter !== "all") {
+      list = list.filter((b) => b.billType === typeFilter);
+    }
+
+    if (dateFrom) {
+      const from = new Date(dateFrom);
+      list = list.filter((b) => b.issueDate && new Date(b.issueDate) >= from);
+    }
+    if (dateTo) {
+      const to = new Date(dateTo);
+      to.setHours(23, 59, 59, 999);
+      list = list.filter((b) => b.issueDate && new Date(b.issueDate) <= to);
+    }
+
+    return list;
+  }, [rawBills, typeFilter, dateFrom, dateTo]);
+
+  // Counts per type (from rawBills, ignoring type filter, respecting date filter)
+  const typeCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: 0 };
+    for (const b of rawBills as any[]) {
+      counts.all = (counts.all ?? 0) + 1;
+      counts[b.billType] = (counts[b.billType] ?? 0) + 1;
+    }
+    return counts;
+  }, [rawBills]);
 
   const handleDelete = async () => {
     if (!deleteId) return;
     await deleteBill.mutateAsync(deleteId);
     setDeleteId(null);
   };
+
+  const TYPE_PILLS = [
+    { key: "all",              label: "All" },
+    { key: "supplier_bill",    label: "Supplier Bill" },
+    { key: "operation_invoice",label: "Operation Bill" },
+    { key: "packaging_invoice",label: "Packaging Bill" },
+    { key: "shipping_invoice", label: "Shipping Bill" },
+    { key: "devices_invoice",  label: "Devices Bill" },
+    { key: "website_invoice",  label: "Website Service" },
+    { key: "other_expense",    label: "Other Expense" },
+  ];
 
   return (
     <div className="space-y-6">
@@ -167,46 +255,73 @@ export default function InvoicesPage() {
         </div>
       ) : null}
 
-      {/* Filter Bar */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search invoices…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
+      {/* Filter bar: search + pills + date range */}
+      <div className="space-y-3">
+        {/* Row 1: search left, date range right */}
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1 max-w-xs">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder="Search invoices…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+
+          <div className="ml-auto flex items-center gap-2">
+            <CalendarIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+            <Input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="w-36 h-9 text-sm"
+            />
+            <span className="text-muted-foreground text-sm">—</span>
+            <Input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="w-36 h-9 text-sm"
+            />
+            {(dateFrom || dateTo) && (
+              <button
+                onClick={() => { setDateFrom(""); setDateTo(""); }}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
         </div>
 
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="All statuses" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="overdue">Overdue</SelectItem>
-            <SelectItem value="paid">Paid</SelectItem>
-            <SelectItem value="cancelled">Cancelled</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select value={typeFilter} onValueChange={setTypeFilter}>
-          <SelectTrigger className="w-52">
-            <SelectValue placeholder="All types" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Types</SelectItem>
-            <SelectItem value="supplier_bill">Supplier Invoice</SelectItem>
-            <SelectItem value="operation_invoice">Operation Invoice</SelectItem>
-            <SelectItem value="packaging_invoice">Packaging Invoice</SelectItem>
-            <SelectItem value="shipping_invoice">Shipping Invoice</SelectItem>
-            <SelectItem value="devices_invoice">Devices Invoice</SelectItem>
-            <SelectItem value="website_invoice">Website Invoice</SelectItem>
-            <SelectItem value="other_expense">Other Expense</SelectItem>
-          </SelectContent>
-        </Select>
+        {/* Row 2: type filter pills */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {TYPE_PILLS.map(({ key, label }) => {
+            const count = typeCounts[key] ?? 0;
+            const active = typeFilter === key;
+            return (
+              <button
+                key={key}
+                onClick={() => setTypeFilter(key)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium transition-colors border",
+                  active
+                    ? "bg-foreground text-background border-foreground"
+                    : "bg-background text-muted-foreground border-border hover:border-foreground/40 hover:text-foreground"
+                )}
+              >
+                {label}
+                <span className={cn(
+                  "text-xs rounded-full px-1.5 py-0.5 leading-none tabular-nums",
+                  active ? "bg-background/20 text-background" : "bg-muted text-muted-foreground"
+                )}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Table */}
@@ -216,16 +331,16 @@ export default function InvoicesPage() {
             <div key={i} className="h-14 animate-pulse rounded-lg bg-muted" />
           ))}
         </div>
-      ) : (bills as any[]).length === 0 ? (
+      ) : bills.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-20 text-center">
           <Receipt className="mb-4 h-12 w-12 text-muted-foreground/40" />
           <h3 className="text-lg font-semibold">No invoices found</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            {search || statusFilter !== "all" || typeFilter !== "all"
+            {search || typeFilter !== "all" || dateFrom || dateTo
               ? "Try adjusting your filters."
               : "Get started by recording your first invoice."}
           </p>
-          {!search && statusFilter === "all" && typeFilter === "all" && (
+          {!search && typeFilter === "all" && !dateFrom && !dateTo && (
             <Button className="mt-4" onClick={() => router.push("/bills/new")}>
               <Plus className="mr-2 h-4 w-4" />
               New Invoice
@@ -236,79 +351,126 @@ export default function InvoicesPage() {
         <div className="rounded-xl border overflow-hidden">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>Invoice #</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Issue Date</TableHead>
-                <TableHead>Due Date</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-                <TableHead>Paid By</TableHead>
-                <TableHead className="w-12"></TableHead>
+              <TableRow className="bg-muted/30">
+                <TableHead className="font-semibold">Invoice #</TableHead>
+                <TableHead className="font-semibold">Supplier</TableHead>
+                <TableHead className="font-semibold">Type</TableHead>
+                <TableHead className="font-semibold">Paid By</TableHead>
+                <TableHead className="font-semibold">Dates</TableHead>
+                <TableHead className="font-semibold">Status</TableHead>
+                <TableHead className="text-right font-semibold">Amount</TableHead>
+                <TableHead className="w-20"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(bills as any[]).map((bill) => (
-                <TableRow key={bill.id}>
-                  <TableCell className="font-mono text-xs text-muted-foreground">
-                    <div className="flex items-center gap-1.5">
-                      {bill.billNumber ?? "—"}
-                      {bill.receiptImageUrl && (
-                        <button
-                          type="button"
-                          onClick={() => setPreviewUrl(bill.receiptImageUrl)}
-                          className="text-muted-foreground hover:text-foreground transition-colors"
-                          title="View receipt"
-                        >
-                          <ImageIcon className="h-3.5 w-3.5" />
-                        </button>
+              {bills.map((bill) => (
+                <TableRow key={bill.id} className="group">
+                  {/* Invoice # + name */}
+                  <TableCell>
+                    <div className="flex items-start gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono text-xs font-semibold text-foreground">
+                            {bill.billNumber ?? "—"}
+                          </span>
+                          {bill.receiptImageUrl && (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewUrl(bill.receiptImageUrl)}
+                              className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                              title="View receipt"
+                            >
+                              <ImageIcon className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                        {bill.name && (
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-[180px]">
+                            {bill.name}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </TableCell>
+
+                  {/* Supplier */}
+                  <TableCell className="text-sm">
+                    {bill.supplierName ? (
+                      <span className="font-medium">{bill.supplierName}</span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+
+                  {/* Type badge */}
+                  <TableCell>
+                    <span className={cn(
+                      "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium whitespace-nowrap",
+                      TYPE_BADGE_STYLES[bill.billType] ?? "bg-gray-100 text-gray-600 border-gray-200"
+                    )}>
+                      {TYPE_PILL_LABELS[bill.billType] ?? bill.billType}
+                    </span>
+                  </TableCell>
+
+                  {/* Paid By */}
+                  <TableCell className="text-sm">
+                    {bill.paidBy ? (
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <User className="h-3.5 w-3.5 shrink-0" />
+                        <span>{bill.paidBy}</span>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+
+                  {/* Dates — stacked */}
+                  <TableCell>
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-1.5 text-xs text-foreground">
+                        <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <span>{formatDate(bill.issueDate)}</span>
+                      </div>
+                      {bill.dueDate && (
+                        <div className={cn(
+                          "flex items-center gap-1.5 text-xs",
+                          bill.status === "overdue" ? "text-orange-600" : "text-muted-foreground"
+                        )}>
+                          <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
+                          <span>Due: {formatDate(bill.dueDate)}</span>
+                        </div>
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="font-medium max-w-[160px] truncate">
-                    {bill.name}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {bill.billType === "supplier_bill"
-                      ? `Supplier Invoice${bill.supplierName ? ` — ${bill.supplierName}` : ""}`
-                      : (BILL_TYPE_LABELS[bill.billType] ?? bill.billType)}
-                  </TableCell>
-                  <TableCell className="text-sm">{formatDate(bill.issueDate)}</TableCell>
-                  <TableCell className="text-sm">{formatDate(bill.dueDate)}</TableCell>
+
+                  {/* Status — inline dropdown */}
                   <TableCell>
-                    <Badge variant={statusVariant(bill.status as BillStatus)}>
-                      {statusLabel(bill.status)}
-                    </Badge>
+                    <StatusDropdown bill={bill} />
                   </TableCell>
-                  <TableCell className="text-right font-medium tabular-nums">
+
+                  {/* Amount */}
+                  <TableCell className="text-right font-semibold tabular-nums">
                     {formatCurrency(bill.totalAmount)}
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {bill.paidBy ?? "—"}
-                  </TableCell>
+
+                  {/* Actions — direct buttons */}
                   <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreHorizontal className="h-4 w-4" />
-                          <span className="sr-only">Open menu</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => router.push(`/bills/${bill.id}/edit`)}>
-                          <Pencil className="mr-2 h-4 w-4" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive"
-                          onClick={() => setDeleteId(bill.id)}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => router.push(`/bills/${bill.id}/edit`)}
+                        className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                        title="Edit"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => setDeleteId(bill.id)}
+                        className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -342,7 +504,6 @@ export default function InvoicesPage() {
       <Dialog open={!!previewUrl} onOpenChange={(v) => !v && setPreviewUrl(null)}>
         <DialogContent className="max-w-3xl p-0 overflow-hidden gap-0 [&>button]:hidden">
           <DialogTitle className="sr-only">Receipt Preview</DialogTitle>
-          {/* Toolbar: download + close */}
           <div className="flex items-center justify-between px-3 py-2 border-b bg-background">
             <span className="text-sm font-medium text-muted-foreground">Receipt</span>
             <div className="flex items-center gap-1">
