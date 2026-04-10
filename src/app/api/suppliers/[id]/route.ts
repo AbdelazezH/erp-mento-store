@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { suppliers, bills, products, productVariants } from "@/lib/db/schema";
+import { suppliers, bills, billLineItems, products, productVariants } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { apiError, apiResponse } from "@/lib/utils";
-import { eq, sum, count, sql, desc } from "drizzle-orm";
+import { eq, sql, desc, isNotNull, and } from "drizzle-orm";
 import { z } from "zod";
 
 const updateSchema = z.object({
@@ -23,24 +23,26 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
   const [supplier] = await db.select().from(suppliers).where(eq(suppliers.id, id));
   if (!supplier) return apiError("Not found", 404);
 
-  // Stats — count distinct products from bill line items, sum bills directly
-  const [stats] = await db
-    .select({
-      productsSourced: sql<number>`(
-        SELECT COUNT(DISTINCT bli.product_id)::int
-        FROM bill_line_items bli
-        JOIN bills b ON b.id = bli.bill_id
-        WHERE b.supplier_id = ${id}
-          AND bli.product_id IS NOT NULL
-      )`,
-      totalInvested: sql<string>`(
-        SELECT COALESCE(SUM(b.total_amount::numeric), 0)::text
-        FROM bills b
-        WHERE b.supplier_id = ${id}
-      )`,
-    })
-    .from(suppliers)
-    .where(eq(suppliers.id, id));
+  // Stats — two separate queries to avoid cartesian product
+  const [[spendRow], [countRow]] = await Promise.all([
+    db
+      .select({ totalInvested: sql<string>`COALESCE(SUM(${bills.totalAmount}::numeric), 0)::text` })
+      .from(bills)
+      .where(eq(bills.supplierId, id)),
+
+    db
+      .select({ productsSourced: sql<number>`COUNT(DISTINCT ${billLineItems.productId})::int` })
+      .from(bills)
+      .innerJoin(
+        billLineItems,
+        and(eq(billLineItems.billId, bills.id), isNotNull(billLineItems.productId))
+      )
+      .where(eq(bills.supplierId, id)),
+  ]);
+  const stats = {
+    totalInvested: spendRow?.totalInvested ?? "0",
+    productsSourced: countRow?.productsSourced ?? 0,
+  };
 
   // Bills for this supplier
   const supplierBills = await db
