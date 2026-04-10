@@ -9,6 +9,7 @@ import {
   useCreateBill,
   useUpdateBill,
   useSuppliers,
+  useCreateSupplier,
   useProducts,
 } from "@/hooks/use-api";
 import { formatCurrency } from "@/lib/utils";
@@ -403,6 +404,7 @@ export function InvoiceForm({
   const createBill = useCreateBill();
   const updateBill = useUpdateBill();
   const { data: suppliers = [] } = useSuppliers();
+  const createSupplier = useCreateSupplier();
   const { data: allProducts = [] } = useProducts();
 
   const {
@@ -444,6 +446,26 @@ export function InvoiceForm({
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
   const [bulkValue, setBulkValue] = useState("");
   const [bulkMode, setBulkMode] = useState<"percent" | "fixed">("percent");
+
+  // Add supplier modal
+  const [supplierModalOpen, setSupplierModalOpen] = useState(false);
+  const [newSupplierName, setNewSupplierName] = useState("");
+  const [newSupplierContact, setNewSupplierContact] = useState("");
+  const [newSupplierPhone, setNewSupplierPhone] = useState("");
+
+  async function handleCreateSupplier() {
+    if (!newSupplierName.trim()) return;
+    const result = await createSupplier.mutateAsync({
+      name: newSupplierName.trim(),
+      contactName: newSupplierContact.trim() || undefined,
+      phone: newSupplierPhone.trim() || undefined,
+    });
+    setValue("supplierId", result.id);
+    setSupplierModalOpen(false);
+    setNewSupplierName("");
+    setNewSupplierContact("");
+    setNewSupplierPhone("");
+  }
 
   // Totals
   const { subTotal, totalDiscount, grandTotal } = useMemo(() => {
@@ -590,9 +612,19 @@ export function InvoiceForm({
 
             {isSupplierInvoice ? (
               <div className="space-y-1.5">
-                <Label>
-                  Supplier <span className="text-destructive">*</span>
-                </Label>
+                <div className="flex items-center justify-between">
+                  <Label>
+                    Supplier <span className="text-destructive">*</span>
+                  </Label>
+                  <button
+                    type="button"
+                    onClick={() => setSupplierModalOpen(true)}
+                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                  >
+                    <Plus className="h-3 w-3" />
+                    New Supplier
+                  </button>
+                </div>
                 <Select
                   defaultValue={defaultValues?.supplierId ?? ""}
                   onValueChange={(v) => setValue("supplierId", v === "__none__" ? null : v)}
@@ -1114,6 +1146,78 @@ export function InvoiceForm({
             </Button>
             <Button type="button" onClick={applyBulkDiscount}>
               Apply
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Supplier Modal */}
+      <Dialog open={supplierModalOpen} onOpenChange={setSupplierModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Add New Supplier</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="ns-name">
+                Name <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="ns-name"
+                placeholder="e.g. Cairo Textiles Co."
+                value={newSupplierName}
+                onChange={(e) => setNewSupplierName(e.target.value)}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleCreateSupplier();
+                  }
+                }}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="ns-contact">
+                Contact Name <span className="text-muted-foreground font-normal">(optional)</span>
+              </Label>
+              <Input
+                id="ns-contact"
+                placeholder="e.g. Ahmed Hassan"
+                value={newSupplierContact}
+                onChange={(e) => setNewSupplierContact(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="ns-phone">
+                Phone <span className="text-muted-foreground font-normal">(optional)</span>
+              </Label>
+              <Input
+                id="ns-phone"
+                placeholder="e.g. 01012345678"
+                value={newSupplierPhone}
+                onChange={(e) => setNewSupplierPhone(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setSupplierModalOpen(false);
+                setNewSupplierName("");
+                setNewSupplierContact("");
+                setNewSupplierPhone("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleCreateSupplier}
+              disabled={!newSupplierName.trim() || createSupplier.isPending}
+            >
+              {createSupplier.isPending ? "Adding…" : "Add Supplier"}
             </Button>
           </DialogFooter>
         </DialogContent>
