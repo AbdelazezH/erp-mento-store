@@ -11,6 +11,7 @@ import {
   useCustomers,
   useProducts,
   useCampaigns,
+  useCostProfiles,
 } from "@/hooks/use-api";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -80,6 +81,10 @@ const orderSchema = z.object({
   shippingFee: z.coerce.number().min(0).default(0),
   shippingDiscount: z.coerce.number().min(0).default(0),
   items: z.array(orderItemSchema).min(1, "At least one item required"),
+  costProfileEntries: z.array(z.object({
+    costProfileId: z.string(),
+    amount: z.string(),
+  })).default([]),
 });
 
 type OrderFormValues = z.infer<typeof orderSchema>;
@@ -207,6 +212,7 @@ export default function OrderForm({
   const { data: customers = [] } = useCustomers();
   const { data: campaigns = [] } = useCampaigns();
   const { data: products = [] } = useProducts();
+  const { data: costProfilesList = [] } = useCostProfiles();
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [productSearch, setProductSearch] = useState("");
@@ -228,6 +234,7 @@ export default function OrderForm({
       shippingFee: 0,
       shippingDiscount: 0,
       items: [{ productId: "", variant: "", quantity: 1, unitPrice: 0, isFree: false }],
+      costProfileEntries: [],
       ...defaultValues,
     },
   });
@@ -238,6 +245,13 @@ export default function OrderForm({
   const watchedShippingFee = watch("shippingFee");
   const watchedShippingDiscount = watch("shippingDiscount");
   const watchedCampaignId = watch("campaignId");
+  const watchedCPEntries = watch("costProfileEntries");
+
+  // Total item quantity (for per_item cost profile calculation)
+  const totalItemQuantity = useMemo(
+    () => (watchedItems ?? []).reduce((sum, item) => sum + (Number(item.quantity) || 0), 0),
+    [watchedItems],
+  );
 
   // Find selected campaign for COGS lookup
   const selectedCampaign = useMemo(
@@ -246,7 +260,7 @@ export default function OrderForm({
   );
 
   // Calc summary
-  const { subtotal, totalCost, shippingNet, grandTotal, estimatedProfit } = useMemo(() => {
+  const { subtotal, totalCost, shippingNet, costProfileTotal, grandTotal, estimatedProfit } = useMemo(() => {
     const sub = (watchedItems ?? []).reduce((sum, item) => {
       if (item.isFree) return sum;
       return sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
@@ -270,12 +284,29 @@ export default function OrderForm({
       return sum + cost * (Number(item.quantity) || 0);
     }, 0);
 
+    const cpTotal = (watchedCPEntries ?? []).reduce((sum, entry) => sum + parseFloat(entry.amount || "0"), 0);
+
     const net = Math.max(0, (Number(watchedShippingFee) || 0) - (Number(watchedShippingDiscount) || 0));
     const grand = sub + net;
-    const profit = grand - cogs;
+    const profit = grand - cogs - cpTotal;
 
-    return { subtotal: sub, totalCost: cogs, shippingNet: net, grandTotal: grand, estimatedProfit: profit };
-  }, [watchedItems, watchedShippingFee, watchedShippingDiscount, products, selectedCampaign]);
+    return { subtotal: sub, totalCost: cogs, shippingNet: net, costProfileTotal: cpTotal, grandTotal: grand, estimatedProfit: profit };
+  }, [watchedItems, watchedShippingFee, watchedShippingDiscount, products, selectedCampaign, watchedCPEntries]);
+
+  // Auto-recalculate per_item cost profile amounts when item quantities change
+  useEffect(() => {
+    const entries = watchedCPEntries ?? [];
+    entries.forEach((entry, idx) => {
+      const profile = (costProfilesList as any[]).find((p: any) => p.id === entry.costProfileId);
+      if (profile && profile.applicationRule !== "manual") {
+        const newAmount =
+          profile.applicationRule === "per_item"
+            ? parseFloat(profile.unitCost) * totalItemQuantity
+            : parseFloat(profile.unitCost);
+        setValue(`costProfileEntries.${idx}.amount`, String(newAmount));
+      }
+    });
+  }, [totalItemQuantity]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onSubmit = async (data: OrderFormValues) => {
     // Build line items for API
@@ -316,6 +347,7 @@ export default function OrderForm({
       shippingFee: String(data.shippingFee),
       shippingDiscount: String(data.shippingDiscount),
       lineItems,
+      costProfileEntries: data.costProfileEntries ?? [],
     };
 
     if (orderId) {
@@ -714,6 +746,92 @@ export default function OrderForm({
                 </CardContent>
               </Card>
 
+              {/* Cost Profiles */}
+              <Card>
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-base">Cost Profiles</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {(costProfilesList as any[]).filter((p: any) => p.isActive).length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No active cost profiles.</p>
+                  ) : (
+                    (costProfilesList as any[])
+                      .filter((p: any) => p.isActive)
+                      .map((profile: any) => {
+                        const isSelected = (watchedCPEntries ?? []).some(
+                          (e) => e.costProfileId === profile.id,
+                        );
+                        const entryIdx = (watchedCPEntries ?? []).findIndex(
+                          (e) => e.costProfileId === profile.id,
+                        );
+                        const computedAmount =
+                          profile.applicationRule === "per_item"
+                            ? parseFloat(profile.unitCost) * totalItemQuantity
+                            : profile.applicationRule === "per_order"
+                              ? parseFloat(profile.unitCost)
+                              : 0;
+
+                        return (
+                          <div key={profile.id} className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              className="h-4 w-4 rounded border-input"
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  const amount =
+                                    profile.applicationRule === "manual"
+                                      ? "0"
+                                      : String(computedAmount);
+                                  setValue("costProfileEntries", [
+                                    ...(watchedCPEntries ?? []),
+                                    { costProfileId: profile.id, amount },
+                                  ]);
+                                } else {
+                                  setValue(
+                                    "costProfileEntries",
+                                    (watchedCPEntries ?? []).filter(
+                                      (e) => e.costProfileId !== profile.id,
+                                    ),
+                                  );
+                                }
+                              }}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm">{profile.name}</span>
+                              <span className="ml-1.5 text-xs text-muted-foreground">
+                                ({profile.applicationRule === "per_item"
+                                  ? "Per Item"
+                                  : profile.applicationRule === "per_order"
+                                    ? "Per Order"
+                                    : "Manual"})
+                              </span>
+                            </div>
+                            {profile.applicationRule === "manual" && isSelected ? (
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                className="h-7 w-24 text-sm"
+                                value={watchedCPEntries?.[entryIdx]?.amount ?? "0"}
+                                onChange={(e) => {
+                                  if (entryIdx >= 0) {
+                                    setValue(`costProfileEntries.${entryIdx}.amount`, e.target.value);
+                                  }
+                                }}
+                              />
+                            ) : (
+                              <span className="text-sm tabular-nums text-muted-foreground">
+                                {formatCurrency(isSelected ? computedAmount : parseFloat(profile.unitCost))}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })
+                  )}
+                </CardContent>
+              </Card>
+
               {/* Financial Summary */}
               <Card>
                 <CardHeader className="pb-4">
@@ -734,6 +852,14 @@ export default function OrderForm({
                       -{formatCurrency(totalCost)}
                     </span>
                   </div>
+                  {costProfileTotal > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Cost Profiles</span>
+                      <span className="tabular-nums font-medium text-red-600">
+                        -{formatCurrency(costProfileTotal)}
+                      </span>
+                    </div>
+                  )}
                   <Separator />
                   <div className="flex justify-between font-bold">
                     <span>Grand Total</span>

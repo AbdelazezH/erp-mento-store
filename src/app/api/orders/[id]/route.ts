@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { orders, orderLineItems, customers, campaigns, products, productVariants } from "@/lib/db/schema";
+import { orders, orderLineItems, customers, campaigns, products, productVariants, orderCostProfiles, costProfiles } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { apiError, apiResponse } from "@/lib/utils";
 import { eq } from "drizzle-orm";
@@ -32,6 +32,10 @@ const updateSchema = z.object({
   notes: z.string().optional().nullable(),
   customerFeedback: z.string().optional().nullable(),
   lineItems: z.array(lineItemSchema).optional(),
+  costProfileEntries: z.array(z.object({
+    costProfileId: z.string().uuid(),
+    amount: z.string(),
+  })).optional(),
 });
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -86,7 +90,21 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
     .leftJoin(products, eq(orderLineItems.productId, products.id))
     .where(eq(orderLineItems.orderId, id));
 
-  return apiResponse({ ...order, lineItems });
+  const costProfileEntries = await db
+    .select({
+      id: orderCostProfiles.id,
+      costProfileId: orderCostProfiles.costProfileId,
+      amount: orderCostProfiles.amount,
+      profileName: costProfiles.name,
+      profileCategory: costProfiles.category,
+      applicationRule: costProfiles.applicationRule,
+      unitCost: costProfiles.unitCost,
+    })
+    .from(orderCostProfiles)
+    .innerJoin(costProfiles, eq(orderCostProfiles.costProfileId, costProfiles.id))
+    .where(eq(orderCostProfiles.orderId, id));
+
+  return apiResponse({ ...order, lineItems, costProfileEntries });
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -98,21 +116,38 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) return apiError(parsed.error.message, 400);
 
-  const { lineItems, orderDate, ...orderData } = parsed.data;
+  const { lineItems, costProfileEntries, orderDate, ...orderData } = parsed.data;
   const updateData: Record<string, unknown> = { ...orderData };
   if (orderDate) updateData.orderDate = new Date(orderDate);
 
-  if (lineItems !== undefined) {
-    const totalAmount = lineItems.reduce((sum, item) => sum + parseFloat(item.total), 0);
-    const totalCost = lineItems.reduce((sum, item) => sum + parseFloat(item.unitCost) * item.quantity, 0);
+  if (lineItems !== undefined || costProfileEntries !== undefined) {
+    // Use provided values or fetch existing ones for recalculation
+    const effectiveLineItems = lineItems ?? (await db.select().from(orderLineItems).where(eq(orderLineItems.orderId, id)));
+    const effectiveCostEntries = costProfileEntries ?? (await db.select().from(orderCostProfiles).where(eq(orderCostProfiles.orderId, id)));
+
+    const totalAmount = effectiveLineItems.reduce((sum, item) => sum + parseFloat(item.total), 0);
+    const totalCost = effectiveLineItems.reduce((sum, item) => sum + parseFloat(item.unitCost) * item.quantity, 0);
+    const cpTotal = effectiveCostEntries.reduce((sum, e) => sum + parseFloat(e.amount), 0);
+
     updateData.totalAmount = totalAmount.toFixed(2);
     updateData.totalCost = totalCost.toFixed(2);
-    updateData.profit = (totalAmount - totalCost).toFixed(2);
+    updateData.profit = (totalAmount - totalCost - cpTotal).toFixed(2);
+  }
 
+  if (lineItems !== undefined) {
     await db.delete(orderLineItems).where(eq(orderLineItems.orderId, id));
     if (lineItems.length > 0) {
       await db.insert(orderLineItems).values(
         lineItems.map(({ id: _, ...item }) => ({ ...item, orderId: id }))
+      );
+    }
+  }
+
+  if (costProfileEntries !== undefined) {
+    await db.delete(orderCostProfiles).where(eq(orderCostProfiles.orderId, id));
+    if (costProfileEntries.length > 0) {
+      await db.insert(orderCostProfiles).values(
+        costProfileEntries.map((entry) => ({ ...entry, orderId: id }))
       );
     }
   }

@@ -334,6 +334,17 @@ export const costProfiles = pgTable("cost_profiles", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const orderCostProfiles = pgTable("order_cost_profiles", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orderId: uuid("order_id")
+    .notNull()
+    .references(() => orders.id, { onDelete: "cascade" }),
+  costProfileId: uuid("cost_profile_id")
+    .notNull()
+    .references(() => costProfiles.id, { onDelete: "cascade" }),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+});
+
 // ─── Relations ────────────────────────────────────────────────────────────────
 
 export const categoriesRelations = relations(categories, ({ many }) => ({
@@ -415,6 +426,7 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
     references: [customers.id],
   }),
   lineItems: many(orderLineItems),
+  costProfileEntries: many(orderCostProfiles),
 }));
 
 export const orderLineItemsRelations = relations(orderLineItems, ({ one }) => ({
@@ -451,6 +463,15 @@ export const invitationsRelations = relations(invitations, ({ one }) => ({
   }),
 }));
 
+export const orderCostProfilesRelations = relations(orderCostProfiles, ({ one }) => ({
+  order: one(orders, { fields: [orderCostProfiles.orderId], references: [orders.id] }),
+  costProfile: one(costProfiles, { fields: [orderCostProfiles.costProfileId], references: [costProfiles.id] }),
+}));
+
+export const costProfilesRelations = relations(costProfiles, ({ many }) => ({
+  orderEntries: many(orderCostProfiles),
+}));
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type User = typeof users.$inferSelect;
@@ -471,3 +492,5 @@ export type OrderLineItem = typeof orderLineItems.$inferSelect;
 export type Campaign = typeof campaigns.$inferSelect;
 export type CampaignProduct = typeof campaignProducts.$inferSelect;
 export type ProductImage = typeof productImages.$inferSelect;
+export type OrderCostProfile = typeof orderCostProfiles.$inferSelect;
+export type CostProfile = typeof costProfiles.$inferSelect;

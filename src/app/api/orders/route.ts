@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { orders, orderLineItems, customers, campaigns, products, productVariants } from "@/lib/db/schema";
+import { orders, orderLineItems, customers, campaigns, products, productVariants, orderCostProfiles } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { apiError, apiResponse, generateOrderNumber } from "@/lib/utils";
 import { desc, eq, ilike, and, sql, count as drizzleCount } from "drizzle-orm";
@@ -31,6 +31,10 @@ const createSchema = z.object({
   notes: z.string().optional().nullable(),
   customerFeedback: z.string().optional().nullable(),
   lineItems: z.array(lineItemSchema).default([]),
+  costProfileEntries: z.array(z.object({
+    costProfileId: z.string().uuid(),
+    amount: z.string(),
+  })).default([]),
 });
 
 export async function GET(req: NextRequest) {
@@ -92,12 +96,13 @@ export async function POST(req: NextRequest) {
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) return apiError(parsed.error.message, 400);
 
-  const { lineItems, ...orderData } = parsed.data;
+  const { lineItems, costProfileEntries, ...orderData } = parsed.data;
 
   // Calculate totals
   const totalAmount = lineItems.reduce((sum, item) => sum + parseFloat(item.total), 0);
   const totalCost = lineItems.reduce((sum, item) => sum + parseFloat(item.unitCost) * item.quantity, 0);
-  const profit = totalAmount - totalCost;
+  const costProfileTotal = costProfileEntries.reduce((sum, e) => sum + parseFloat(e.amount), 0);
+  const profit = totalAmount - totalCost - costProfileTotal;
 
   const [order] = await db
     .insert(orders)
@@ -114,6 +119,12 @@ export async function POST(req: NextRequest) {
   if (lineItems.length > 0) {
     await db.insert(orderLineItems).values(
       lineItems.map((item) => ({ ...item, orderId: order.id }))
+    );
+  }
+
+  if (costProfileEntries.length > 0) {
+    await db.insert(orderCostProfiles).values(
+      costProfileEntries.map((entry) => ({ ...entry, orderId: order.id }))
     );
   }
 

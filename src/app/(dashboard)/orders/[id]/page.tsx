@@ -57,6 +57,13 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
             isFree: i.isFree ?? false,
           }))
         : [{ productId: "", variant: "", quantity: 1, unitPrice: 0, isFree: false }],
+    costProfileEntries:
+      (order as any).costProfileEntries?.length > 0
+        ? (order as any).costProfileEntries.map((e: any) => ({
+            costProfileId: e.costProfileId,
+            amount: e.amount,
+          }))
+        : [],
   };
 
   return <OrderForm orderId={id} defaultValues={defaultValues} />;
