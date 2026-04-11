@@ -14,6 +14,7 @@ const createSchema = z.object({
   governorate: z.string().optional().nullable(),
   address: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
+  hasFeedback: z.boolean().optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -44,6 +45,7 @@ export async function GET(req: NextRequest) {
         governorate: customers.governorate,
         address: customers.address,
         notes: customers.notes,
+        hasFeedback: customers.hasFeedback,
         createdAt: customers.createdAt,
         orderCount: count(orders.id),
         totalSpend: sum(orders.totalAmount),

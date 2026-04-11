@@ -15,6 +15,27 @@
       "when": 1775648460303,
       "tag": "0001_outgoing_namora",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1775935064552,
+      "tag": "0002_whole_silvermane",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1775938356791,
+      "tag": "0003_bright_albert_cleary",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1775940427107,
+      "tag": "0004_watery_polaris",
+      "breakpoints": true
     }
   ]
 }

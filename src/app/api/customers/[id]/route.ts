@@ -14,6 +14,7 @@ const updateSchema = z.object({
   governorate: z.string().optional().nullable(),
   address: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
+  hasFeedback: z.boolean().optional(),
 });
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {

@@ -253,6 +253,7 @@ export const customers = pgTable("customers", {
   governorate: text("governorate"),
   address: text("address"),
   notes: text("notes"),
+  hasFeedback: boolean("has_feedback").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

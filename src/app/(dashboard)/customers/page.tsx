@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import {
   useInfiniteCustomers,
+  useUpdateCustomer,
   useDeleteCustomer,
 } from "@/hooks/use-api";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -39,6 +40,7 @@ import {
   Pencil,
   Trash2,
   Users,
+  Star,
 } from "lucide-react";
 import { CustomerFormDialog } from "@/components/features/customers/customer-form-dialog";
 
@@ -58,6 +60,7 @@ export default function CustomersPage() {
     isFetchingNextPage,
   } = useInfiniteCustomers({ search: search || undefined });
   const customers = useMemo(() => customersData?.pages.flatMap((p) => p.data) ?? [], [customersData]);
+  const updateCustomer = useUpdateCustomer();
   const deleteCustomer = useDeleteCustomer();
 
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -141,6 +144,7 @@ export default function CustomersPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10"></TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Phone</TableHead>
@@ -153,6 +157,27 @@ export default function CustomersPage() {
             <TableBody>
               {(customers as any[]).map((customer) => (
                 <TableRow key={customer.id}>
+                  <TableCell>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateCustomer.mutate({
+                          id: customer.id,
+                          hasFeedback: !customer.hasFeedback,
+                        })
+                      }
+                      className="transition-colors hover:scale-110"
+                      title={customer.hasFeedback ? "Remove feedback" : "Mark as feedback given"}
+                    >
+                      <Star
+                        className={`h-4 w-4 ${
+                          customer.hasFeedback
+                            ? "fill-yellow-400 text-yellow-400"
+                            : "text-muted-foreground/40"
+                        }`}
+                      />
+                    </button>
+                  </TableCell>
                   <TableCell className="font-medium">{customer.name}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {customer.email ?? "—"}

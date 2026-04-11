@@ -1,0 +1,1 @@
+ALTER TABLE "customers" ADD COLUMN "has_feedback" boolean DEFAULT false NOT NULL;
