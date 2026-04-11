@@ -296,7 +296,7 @@ export default function OrderForm({
   );
 
   // Calc summary
-  const { subtotal, totalCost, shippingNet, costProfileTotal, orderDiscount, grandTotal, estimatedProfit } = useMemo(() => {
+  const { subtotal, totalCost, freeItemsCost, shippingNet, costProfileTotal, orderDiscount, grandTotal, estimatedProfit } = useMemo(() => {
     const sub = (watchedItems ?? []).reduce((sum, item) => {
       if (item.isFree) return sum;
       return sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
@@ -304,6 +304,23 @@ export default function OrderForm({
 
     const cogs = (watchedItems ?? []).reduce((sum, item) => {
       if (item.isFree) return sum;
+      const prod = (products as any[]).find((p: any) => p.id === item.productId);
+      let cost = prod ? parseFloat(prod.averageCost ?? prod.basePrice ?? "0") : 0;
+
+      if (selectedCampaign && prod) {
+        const campaignProd = (selectedCampaign.products ?? []).find(
+          (cp: any) => cp.productId === prod.id,
+        );
+        if (campaignProd?.cogs) {
+          cost = parseFloat(campaignProd.cogs);
+        }
+      }
+
+      return sum + cost * (Number(item.quantity) || 0);
+    }, 0);
+
+    const freeItemsCost = (watchedItems ?? []).reduce((sum, item) => {
+      if (!item.isFree) return sum;
       const prod = (products as any[]).find((p: any) => p.id === item.productId);
       let cost = prod ? parseFloat(prod.averageCost ?? prod.basePrice ?? "0") : 0;
 
@@ -333,9 +350,9 @@ export default function OrderForm({
     disc = Math.min(disc, sub + net);
 
     const grand = sub + net - disc;
-    const profit = grand - cogs - cpTotal;
+    const profit = grand - cogs - cpTotal - freeItemsCost;
 
-    return { subtotal: sub, totalCost: cogs, shippingNet: net, costProfileTotal: cpTotal, orderDiscount: disc, grandTotal: grand, estimatedProfit: profit };
+    return { subtotal: sub, totalCost: cogs, freeItemsCost, shippingNet: net, costProfileTotal: cpTotal, orderDiscount: disc, grandTotal: grand, estimatedProfit: profit };
   }, [watchedItems, watchedShippingFee, watchedShippingDiscount, products, selectedCampaign, watchedCPEntries, watchedDiscountType, watchedDiscountValue]);
 
   // Auto-recalculate per_item cost profile amounts when item quantities change
@@ -682,7 +699,7 @@ export default function OrderForm({
                         <TableHead>Product</TableHead>
                         <TableHead className="w-28">Variant</TableHead>
                         <TableHead className="w-24">Qty</TableHead>
-                        <TableHead className="w-36">Unit Price</TableHead>
+                        <TableHead className="w-[80px] min-w-[80px]">Unit Price</TableHead>
                         <TableHead className="w-16 text-center">Free?</TableHead>
                         <TableHead className="w-28 text-right">Total</TableHead>
                         <TableHead className="w-10"></TableHead>
@@ -739,7 +756,7 @@ export default function OrderForm({
                                 className="h-8 text-sm w-24"
                               />
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="w-[120px] min-w-[120px]">
                               <Input
                                 type="number"
                                 step="0.01"
@@ -983,14 +1000,30 @@ export default function OrderForm({
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Shipping</span>
-                    <span className="tabular-nums font-medium">{formatCurrency(shippingNet)}</span>
+                    <span className="tabular-nums font-medium">{formatCurrency(Number(watchedShippingFee) || 0)}</span>
                   </div>
+                  {(Number(watchedShippingDiscount) || 0) > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Shipping Discount</span>
+                      <span className="tabular-nums font-medium text-red-600">
+                        -{formatCurrency(Number(watchedShippingDiscount) || 0)}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">COGS</span>
                     <span className="tabular-nums font-medium text-red-600">
                       -{formatCurrency(totalCost)}
                     </span>
                   </div>
+                  {freeItemsCost > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Free Items</span>
+                      <span className="tabular-nums font-medium text-red-600">
+                        -{formatCurrency(freeItemsCost)}
+                      </span>
+                    </div>
+                  )}
                   {costProfileTotal > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Cost Profiles</span>
