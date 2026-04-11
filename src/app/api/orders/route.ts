@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { orders, orderLineItems, customers, campaigns, products, productVariants, orderCostProfiles } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { apiError, apiResponse, generateOrderNumber } from "@/lib/utils";
-import { desc, eq, ilike, and, sql, count as drizzleCount } from "drizzle-orm";
+import { desc, eq, ilike, and, sql, count as drizzleCount, isNull, gt, ne } from "drizzle-orm";
 import { z } from "zod";
 
 const lineItemSchema = z.object({
@@ -35,6 +35,9 @@ const createSchema = z.object({
     costProfileId: z.string().uuid(),
     amount: z.string(),
   })).default([]),
+  discountType: z.enum(["percent", "fixed"]).optional().nullable(),
+  discountValue: z.string().default("0"),
+  trackInventory: z.boolean().default(true),
 });
 
 export async function GET(req: NextRequest) {
@@ -102,7 +105,18 @@ export async function POST(req: NextRequest) {
   const totalAmount = lineItems.reduce((sum, item) => sum + parseFloat(item.total), 0);
   const totalCost = lineItems.reduce((sum, item) => sum + parseFloat(item.unitCost) * item.quantity, 0);
   const costProfileTotal = costProfileEntries.reduce((sum, e) => sum + parseFloat(e.amount), 0);
-  const profit = totalAmount - totalCost - costProfileTotal;
+
+  // Calculate order discount
+  const shippingNet = Math.max(0, parseFloat(orderData.shippingFee ?? "0") - parseFloat(orderData.shippingDiscount ?? "0"));
+  let orderDiscount = 0;
+  if (orderData.discountType === "percent") {
+    orderDiscount = (totalAmount + shippingNet) * (parseFloat(orderData.discountValue ?? "0") / 100);
+  } else if (orderData.discountType === "fixed") {
+    orderDiscount = parseFloat(orderData.discountValue ?? "0");
+  }
+  orderDiscount = Math.min(orderDiscount, totalAmount + shippingNet); // Cap at total
+
+  const profit = totalAmount + shippingNet - orderDiscount - totalCost - costProfileTotal;
 
   const [order] = await db
     .insert(orders)
@@ -126,6 +140,23 @@ export async function POST(req: NextRequest) {
     await db.insert(orderCostProfiles).values(
       costProfileEntries.map((entry) => ({ ...entry, orderId: order.id }))
     );
+  }
+
+  // Decrement inventory if trackInventory is true
+  if (parsed.data.trackInventory !== false) {
+    for (const item of lineItems) {
+      if (!item.productId) continue;
+      const qty = item.quantity;
+      if (item.variantId) {
+        await db.update(productVariants)
+          .set({ stockQuantity: sql`GREATEST(stock_quantity - ${qty}, 0)` })
+          .where(eq(productVariants.id, item.variantId));
+      } else {
+        await db.update(products)
+          .set({ stockQuantity: sql`GREATEST(stock_quantity - ${qty}, 0)` })
+          .where(eq(products.id, item.productId));
+      }
+    }
   }
 
   return apiResponse(order, 201);

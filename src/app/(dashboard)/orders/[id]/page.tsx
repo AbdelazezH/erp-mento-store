@@ -47,16 +47,20 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
     customerFeedback: (order as any).customerFeedback ?? "",
     shippingFee: parseFloat((order as any).shippingFee ?? "0"),
     shippingDiscount: parseFloat((order as any).shippingDiscount ?? "0"),
+    discountType: (order as any).discountType ?? null,
+    discountValue: parseFloat((order as any).discountValue ?? "0"),
+    trackInventory: (order as any).trackInventory ?? true,
     items:
       (order as any).lineItems?.length > 0
         ? (order as any).lineItems.map((i: any) => ({
             productId: i.productId ?? "",
+            variantId: i.variantId ?? "",
             variant: i.variantName ?? "",
             quantity: parseInt(String(i.quantity ?? "1")),
             unitPrice: parseFloat(i.unitPrice ?? "0"),
             isFree: i.isFree ?? false,
           }))
-        : [{ productId: "", variant: "", quantity: 1, unitPrice: 0, isFree: false }],
+        : [{ productId: "", variantId: "", variant: "", quantity: 1, unitPrice: 0, isFree: false }],
     costProfileEntries:
       (order as any).costProfileEntries?.length > 0
         ? (order as any).costProfileEntries.map((e: any) => ({

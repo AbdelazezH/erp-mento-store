@@ -36,6 +36,9 @@ const updateSchema = z.object({
     costProfileId: z.string().uuid(),
     amount: z.string(),
   })).optional(),
+  discountType: z.enum(["percent", "fixed"]).optional().nullable(),
+  discountValue: z.string().optional(),
+  trackInventory: z.boolean().optional(),
 });
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -62,6 +65,9 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
       campaignId: orders.campaignId,
       customerName: customers.name,
       campaignName: campaigns.name,
+      discountType: orders.discountType,
+      discountValue: orders.discountValue,
+      trackInventory: orders.trackInventory,
     })
     .from(orders)
     .leftJoin(customers, eq(orders.customerId, customers.id))
@@ -120,7 +126,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const updateData: Record<string, unknown> = { ...orderData };
   if (orderDate) updateData.orderDate = new Date(orderDate);
 
-  if (lineItems !== undefined || costProfileEntries !== undefined) {
+  if (lineItems !== undefined || costProfileEntries !== undefined || orderData.discountType !== undefined || orderData.discountValue !== undefined) {
     // Use provided values or fetch existing ones for recalculation
     const effectiveLineItems = lineItems ?? (await db.select().from(orderLineItems).where(eq(orderLineItems.orderId, id)));
     const effectiveCostEntries = costProfileEntries ?? (await db.select().from(orderCostProfiles).where(eq(orderCostProfiles.orderId, id)));
@@ -129,9 +135,33 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const totalCost = effectiveLineItems.reduce((sum, item) => sum + parseFloat(item.unitCost) * item.quantity, 0);
     const cpTotal = effectiveCostEntries.reduce((sum, e) => sum + parseFloat(e.amount), 0);
 
+    const shippingFee = orderData.shippingFee !== undefined ? parseFloat(orderData.shippingFee) : null;
+    const shippingDiscount = orderData.shippingDiscount !== undefined ? parseFloat(orderData.shippingDiscount) : null;
+    // Fetch existing shipping if not provided
+    let shippingNet: number;
+    if (shippingFee !== null && shippingDiscount !== null) {
+      shippingNet = Math.max(0, shippingFee - shippingDiscount);
+    } else {
+      const [existing] = await db.select({ shippingFee: orders.shippingFee, shippingDiscount: orders.shippingDiscount }).from(orders).where(eq(orders.id, id));
+      const fee = shippingFee !== null ? String(shippingFee) : (existing.shippingFee ?? "0");
+      const disc = shippingDiscount !== null ? String(shippingDiscount) : (existing.shippingDiscount ?? "0");
+      shippingNet = Math.max(0, parseFloat(fee) - parseFloat(disc));
+    }
+
+    const discountType = orderData.discountType !== undefined ? orderData.discountType : (await db.select({ discountType: orders.discountType }).from(orders).where(eq(orders.id, id)))[0]?.discountType;
+    const discountValue = orderData.discountValue !== undefined ? orderData.discountValue : (await db.select({ discountValue: orders.discountValue }).from(orders).where(eq(orders.id, id)))[0]?.discountValue;
+
+    let orderDiscount = 0;
+    if (discountType === "percent") {
+      orderDiscount = (totalAmount + shippingNet) * (parseFloat(discountValue ?? "0") / 100);
+    } else if (discountType === "fixed") {
+      orderDiscount = parseFloat(discountValue ?? "0");
+    }
+    orderDiscount = Math.min(orderDiscount, totalAmount + shippingNet);
+
     updateData.totalAmount = totalAmount.toFixed(2);
     updateData.totalCost = totalCost.toFixed(2);
-    updateData.profit = (totalAmount - totalCost - cpTotal).toFixed(2);
+    updateData.profit = (totalAmount + shippingNet - orderDiscount - totalCost - cpTotal).toFixed(2);
   }
 
   if (lineItems !== undefined) {

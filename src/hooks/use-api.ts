@@ -358,6 +358,14 @@ export function useCustomers(search?: string) {
   });
 }
 
+export function useCustomer(id: string) {
+  return useQuery({
+    queryKey: ["customers", id],
+    queryFn: () => apiFetch<any>(`/api/customers/${id}`),
+    enabled: !!id,
+  });
+}
+
 export function useInfiniteCustomers(params?: { search?: string }) {
   return useInfiniteQuery({
     queryKey: ["customers", "infinite", params],

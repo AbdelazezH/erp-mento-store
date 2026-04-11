@@ -56,6 +56,11 @@ export const applicationRuleEnum = pgEnum("application_rule", [
   "manual",
 ]);
 
+export const discountTypeEnum = pgEnum("discount_type", [
+  "percent",
+  "fixed",
+]);
+
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export const users = pgTable("users", {
@@ -270,6 +275,9 @@ export const orders = pgTable("orders", {
   campaignId: uuid("campaign_id").references(() => campaigns.id, {
     onDelete: "set null",
   }),
+  discountType: discountTypeEnum("discount_type"),
+  discountValue: numeric("discount_value", { precision: 12, scale: 2 }).default("0"),
+  trackInventory: boolean("track_inventory").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

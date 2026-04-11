@@ -9,7 +9,9 @@ import {
   useCreateOrder,
   useUpdateOrder,
   useCustomers,
+  useCustomer,
   useProducts,
+  useProduct,
   useCampaigns,
   useCostProfiles,
 } from "@/hooks/use-api";
@@ -20,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -46,6 +49,12 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Plus,
   X,
   Search,
@@ -54,17 +63,23 @@ import {
   ArrowLeft,
   Save,
   ImageIcon,
+  Phone,
+  Mail,
+  MapPin,
+  PackageCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type OrderStatus = "draft" | "pending" | "delivered" | "cancelled";
+type DiscountType = "percent" | "fixed" | null;
 
 // ─── Schema ──────────────────────────────────────────────────────────────────
 
 const orderItemSchema = z.object({
   productId: z.string().min(1, "Product required"),
+  variantId: z.string().optional(),
   variant: z.string().optional(),
   quantity: z.coerce.number().int().min(1, "Min 1"),
   unitPrice: z.coerce.number().min(0),
@@ -80,6 +95,9 @@ const orderSchema = z.object({
   customerFeedback: z.string().optional(),
   shippingFee: z.coerce.number().min(0).default(0),
   shippingDiscount: z.coerce.number().min(0).default(0),
+  discountType: z.enum(["percent", "fixed"]).optional().nullable(),
+  discountValue: z.coerce.number().min(0).default(0),
+  trackInventory: z.boolean().default(true),
   items: z.array(orderItemSchema).min(1, "At least one item required"),
   costProfileEntries: z.array(z.object({
     costProfileId: z.string(),
@@ -217,6 +235,14 @@ export default function OrderForm({
   const [searchOpen, setSearchOpen] = useState(false);
   const [productSearch, setProductSearch] = useState("");
 
+  // Variant modal state
+  const [variantModalOpen, setVariantModalOpen] = useState(false);
+  const [variantModalProductIdx, setVariantModalProductIdx] = useState<number | null>(null);
+  const [variantModalProductId, setVariantModalProductId] = useState<string>("");
+
+  // Fetch product details for variant modal
+  const { data: variantModalProduct } = useProduct(variantModalProductId);
+
   const {
     register,
     handleSubmit,
@@ -233,7 +259,10 @@ export default function OrderForm({
       status: "pending",
       shippingFee: 0,
       shippingDiscount: 0,
-      items: [{ productId: "", variant: "", quantity: 1, unitPrice: 0, isFree: false }],
+      discountType: null,
+      discountValue: 0,
+      trackInventory: true,
+      items: [{ productId: "", variantId: "", variant: "", quantity: 1, unitPrice: 0, isFree: false }],
       costProfileEntries: [],
       ...defaultValues,
     },
@@ -246,6 +275,13 @@ export default function OrderForm({
   const watchedShippingDiscount = watch("shippingDiscount");
   const watchedCampaignId = watch("campaignId");
   const watchedCPEntries = watch("costProfileEntries");
+  const watchedCustomerId = watch("customerId");
+  const watchedDiscountType = watch("discountType");
+  const watchedDiscountValue = watch("discountValue");
+  const watchedTrackInventory = watch("trackInventory");
+
+  // Customer details for context snippet
+  const { data: selectedCustomer } = useCustomer(watchedCustomerId || "");
 
   // Total item quantity (for per_item cost profile calculation)
   const totalItemQuantity = useMemo(
@@ -260,7 +296,7 @@ export default function OrderForm({
   );
 
   // Calc summary
-  const { subtotal, totalCost, shippingNet, costProfileTotal, grandTotal, estimatedProfit } = useMemo(() => {
+  const { subtotal, totalCost, shippingNet, costProfileTotal, orderDiscount, grandTotal, estimatedProfit } = useMemo(() => {
     const sub = (watchedItems ?? []).reduce((sum, item) => {
       if (item.isFree) return sum;
       return sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
@@ -271,7 +307,6 @@ export default function OrderForm({
       const prod = (products as any[]).find((p: any) => p.id === item.productId);
       let cost = prod ? parseFloat(prod.averageCost ?? prod.basePrice ?? "0") : 0;
 
-      // Use campaign COGS if campaign is selected and product has campaign-specific cost
       if (selectedCampaign && prod) {
         const campaignProd = (selectedCampaign.products ?? []).find(
           (cp: any) => cp.productId === prod.id,
@@ -287,11 +322,21 @@ export default function OrderForm({
     const cpTotal = (watchedCPEntries ?? []).reduce((sum, entry) => sum + parseFloat(entry.amount || "0"), 0);
 
     const net = Math.max(0, (Number(watchedShippingFee) || 0) - (Number(watchedShippingDiscount) || 0));
-    const grand = sub + net;
+
+    // Calculate order discount
+    let disc = 0;
+    if (watchedDiscountType === "percent") {
+      disc = (sub + net) * ((Number(watchedDiscountValue) || 0) / 100);
+    } else if (watchedDiscountType === "fixed") {
+      disc = Number(watchedDiscountValue) || 0;
+    }
+    disc = Math.min(disc, sub + net);
+
+    const grand = sub + net - disc;
     const profit = grand - cogs - cpTotal;
 
-    return { subtotal: sub, totalCost: cogs, shippingNet: net, costProfileTotal: cpTotal, grandTotal: grand, estimatedProfit: profit };
-  }, [watchedItems, watchedShippingFee, watchedShippingDiscount, products, selectedCampaign, watchedCPEntries]);
+    return { subtotal: sub, totalCost: cogs, shippingNet: net, costProfileTotal: cpTotal, orderDiscount: disc, grandTotal: grand, estimatedProfit: profit };
+  }, [watchedItems, watchedShippingFee, watchedShippingDiscount, products, selectedCampaign, watchedCPEntries, watchedDiscountType, watchedDiscountValue]);
 
   // Auto-recalculate per_item cost profile amounts when item quantities change
   useEffect(() => {
@@ -324,7 +369,7 @@ export default function OrderForm({
       const total = item.isFree ? 0 : item.quantity * item.unitPrice;
       return {
         productId: item.productId || null,
-        variantId: null,
+        variantId: item.variantId || null,
         productName: prod?.name ?? "Unknown",
         variantName: item.variant || null,
         quantity: item.quantity,
@@ -346,6 +391,9 @@ export default function OrderForm({
       customerFeedback: data.customerFeedback || null,
       shippingFee: String(data.shippingFee),
       shippingDiscount: String(data.shippingDiscount),
+      discountType: data.discountType || null,
+      discountValue: String(data.discountValue || 0),
+      trackInventory: data.trackInventory,
       lineItems,
       costProfileEntries: data.costProfileEntries ?? [],
     };
@@ -358,27 +406,67 @@ export default function OrderForm({
     router.push("/orders");
   };
 
+  // Handle product selection from combobox — open variant modal if has variants
+  const handleProductSelected = (idx: number, prod: any) => {
+    setValue(`items.${idx}.productId`, prod.id);
+    if (prod.sellingPrice) {
+      setValue(`items.${idx}.unitPrice`, parseFloat(prod.sellingPrice));
+    }
+    // Clear previous variant
+    setValue(`items.${idx}.variantId`, "");
+    setValue(`items.${idx}.variant`, "");
+
+    // Check if product has variants
+    if (prod.hasVariants) {
+      setVariantModalProductIdx(idx);
+      setVariantModalProductId(prod.id);
+      setVariantModalOpen(true);
+    }
+  };
+
+  const handleVariantSelected = (variant: any) => {
+    if (variantModalProductIdx === null) return;
+    setValue(`items.${variantModalProductIdx}.variantId`, variant.id);
+    setValue(`items.${variantModalProductIdx}.variant`, variant.name);
+    if (variant.sellingPrice) {
+      setValue(`items.${variantModalProductIdx}.unitPrice`, parseFloat(variant.sellingPrice));
+    }
+    setVariantModalOpen(false);
+    setVariantModalProductIdx(null);
+    setVariantModalProductId("");
+  };
+
   // Quick search: add product from search
   const handleProductSelect = (productId: string) => {
     const prod = (products as any[]).find((p: any) => p.id === productId);
     if (!prod) return;
 
-    // Check if product already in the list
     const existingIdx = fields.findIndex((f) => f.productId === productId);
     if (existingIdx >= 0) {
-      // Increment quantity
       const currentQty = watchedItems?.[existingIdx]?.quantity ?? 1;
       setValue(`items.${existingIdx}.quantity`, currentQty + 1);
     } else {
-      // Add new row or fill empty row
       const emptyIdx = fields.findIndex((f) => !f.productId);
       let unitPrice = prod.sellingPrice ? parseFloat(prod.sellingPrice) : 0;
 
       if (emptyIdx >= 0) {
         setValue(`items.${emptyIdx}.productId`, prod.id);
         setValue(`items.${emptyIdx}.unitPrice`, unitPrice);
+        // Open variant modal for this product if it has variants
+        if (prod.hasVariants) {
+          setVariantModalProductIdx(emptyIdx);
+          setVariantModalProductId(prod.id);
+          setVariantModalOpen(true);
+        }
       } else {
-        append({ productId: prod.id, variant: "", quantity: 1, unitPrice, isFree: false });
+        append({ productId: prod.id, variantId: "", variant: "", quantity: 1, unitPrice, isFree: false });
+        // Open variant modal for the newly appended item
+        if (prod.hasVariants) {
+          const newIdx = fields.length; // will be the last item
+          setVariantModalProductIdx(newIdx);
+          setVariantModalProductId(prod.id);
+          setVariantModalOpen(true);
+        }
       }
     }
     setSearchOpen(false);
@@ -471,6 +559,39 @@ export default function OrderForm({
                     </Select>
                   </div>
                 </div>
+
+                {/* Customer Context Snippet */}
+                {selectedCustomer && (
+                  <div className="bg-muted/50 rounded-lg p-3 space-y-1.5">
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                      {selectedCustomer.phone && (
+                        <span className="flex items-center gap-1.5 text-muted-foreground">
+                          <Phone className="h-3.5 w-3.5" />
+                          {selectedCustomer.phone}
+                        </span>
+                      )}
+                      {selectedCustomer.email && (
+                        <span className="flex items-center gap-1.5 text-muted-foreground">
+                          <Mail className="h-3.5 w-3.5" />
+                          {selectedCustomer.email}
+                        </span>
+                      )}
+                      {selectedCustomer.address && (
+                        <span className="flex items-center gap-1.5 text-muted-foreground">
+                          <MapPin className="h-3.5 w-3.5" />
+                          {selectedCustomer.address}
+                        </span>
+                      )}
+                    </div>
+                    {(selectedCustomer.orderCount > 0 || selectedCustomer.totalSpend) && (
+                      <div className="text-xs text-muted-foreground">
+                        LTV: {formatCurrency(parseFloat(selectedCustomer.totalSpend || "0"))}
+                        {" | "}
+                        Total Orders: {selectedCustomer.orderCount ?? 0}
+                      </div>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -479,61 +600,74 @@ export default function OrderForm({
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base">Order Items</CardTitle>
-                  <Popover open={searchOpen} onOpenChange={setSearchOpen}>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm">
-                        <Search className="mr-1.5 h-3.5 w-3.5" />
-                        Quick Search
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-80 p-0" align="end">
-                      <Command shouldFilter={false}>
-                        <CommandInput
-                          placeholder="Search products..."
-                          value={productSearch}
-                          onValueChange={setProductSearch}
-                        />
-                        <CommandList>
-                          <CommandEmpty>No products found.</CommandEmpty>
-                          <CommandGroup>
-                            {filteredProducts.map((p: any) => (
-                              <CommandItem
-                                key={p.id}
-                                value={p.id}
-                                onSelect={() => handleProductSelect(p.id)}
-                              >
-                                <div className="flex items-center gap-2 w-full">
-                                  {p.imageUrl ? (
-                                    /* eslint-disable-next-line @next/next/no-img-element */
-                                    <img
-                                      src={p.imageUrl}
-                                      alt=""
-                                      className="h-8 w-8 rounded object-cover shrink-0"
-                                    />
-                                  ) : (
-                                    <div className="h-8 w-8 rounded bg-muted shrink-0 flex items-center justify-center">
-                                      <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 text-sm">
+                      <PackageCheck className="h-4 w-4 text-muted-foreground" />
+                      <Label htmlFor="trackInventory" className="text-sm font-normal cursor-pointer">
+                        Track Inventory
+                      </Label>
+                      <Switch
+                        id="trackInventory"
+                        checked={watchedTrackInventory}
+                        onCheckedChange={(checked) => setValue("trackInventory", checked)}
+                      />
+                    </div>
+                    <Popover open={searchOpen} onOpenChange={setSearchOpen}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <Search className="mr-1.5 h-3.5 w-3.5" />
+                          Quick Search
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-80 p-0" align="end">
+                        <Command shouldFilter={false}>
+                          <CommandInput
+                            placeholder="Search products..."
+                            value={productSearch}
+                            onValueChange={setProductSearch}
+                          />
+                          <CommandList>
+                            <CommandEmpty>No products found.</CommandEmpty>
+                            <CommandGroup>
+                              {filteredProducts.map((p: any) => (
+                                <CommandItem
+                                  key={p.id}
+                                  value={p.id}
+                                  onSelect={() => handleProductSelect(p.id)}
+                                >
+                                  <div className="flex items-center gap-2 w-full">
+                                    {p.imageUrl ? (
+                                      /* eslint-disable-next-line @next/next/no-img-element */
+                                      <img
+                                        src={p.imageUrl}
+                                        alt=""
+                                        className="h-8 w-8 rounded object-cover shrink-0"
+                                      />
+                                    ) : (
+                                      <div className="h-8 w-8 rounded bg-muted shrink-0 flex items-center justify-center">
+                                        <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                                      </div>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-medium truncate">{p.name}</p>
+                                      {p.sku && (
+                                        <p className="font-mono text-xs text-muted-foreground">{p.sku}</p>
+                                      )}
                                     </div>
-                                  )}
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium truncate">{p.name}</p>
-                                    {p.sku && (
-                                      <p className="font-mono text-xs text-muted-foreground">{p.sku}</p>
+                                    {p.sellingPrice && (
+                                      <span className="text-xs text-muted-foreground shrink-0">
+                                        {formatCurrency(parseFloat(p.sellingPrice))}
+                                      </span>
                                     )}
                                   </div>
-                                  {p.sellingPrice && (
-                                    <span className="text-xs text-muted-foreground shrink-0">
-                                      {formatCurrency(parseFloat(p.sellingPrice))}
-                                    </span>
-                                  )}
-                                </div>
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
@@ -547,7 +681,7 @@ export default function OrderForm({
                       <TableRow>
                         <TableHead>Product</TableHead>
                         <TableHead className="w-28">Variant</TableHead>
-                        <TableHead className="w-20">Qty</TableHead>
+                        <TableHead className="w-24">Qty</TableHead>
                         <TableHead className="w-28">Unit Price</TableHead>
                         <TableHead className="w-16 text-center">Free?</TableHead>
                         <TableHead className="w-28 text-right">Total</TableHead>
@@ -568,15 +702,7 @@ export default function OrderForm({
                               <ProductCombobox
                                 value={item?.productId ?? ""}
                                 products={(products as any[])}
-                                onSelect={(prod: any) => {
-                                  setValue(`items.${idx}.productId`, prod.id);
-                                  if (prod.sellingPrice) {
-                                    setValue(
-                                      `items.${idx}.unitPrice`,
-                                      parseFloat(prod.sellingPrice),
-                                    );
-                                  }
-                                }}
+                                onSelect={(prod: any) => handleProductSelected(idx, prod)}
                               />
                               {errors.items?.[idx]?.productId && (
                                 <p className="text-xs text-destructive mt-0.5">
@@ -585,11 +711,24 @@ export default function OrderForm({
                               )}
                             </TableCell>
                             <TableCell>
-                              <Input
-                                {...register(`items.${idx}.variant`)}
-                                placeholder="e.g. Red, L"
-                                className="h-8 text-sm"
-                              />
+                              {item?.variant ? (
+                                <Badge
+                                  variant="secondary"
+                                  className="cursor-pointer"
+                                  onClick={() => {
+                                    // Re-open variant modal for this product
+                                    if (item.productId) {
+                                      setVariantModalProductIdx(idx);
+                                      setVariantModalProductId(item.productId);
+                                      setVariantModalOpen(true);
+                                    }
+                                  }}
+                                >
+                                  {item.variant}
+                                </Badge>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">-</span>
+                              )}
                             </TableCell>
                             <TableCell>
                               <Input
@@ -597,7 +736,7 @@ export default function OrderForm({
                                 min="1"
                                 step="1"
                                 {...register(`items.${idx}.quantity`)}
-                                className="h-8 text-sm"
+                                className="h-8 text-sm w-24"
                               />
                             </TableCell>
                             <TableCell>
@@ -649,7 +788,7 @@ export default function OrderForm({
                     variant="outline"
                     size="sm"
                     onClick={() =>
-                      append({ productId: "", variant: "", quantity: 1, unitPrice: 0, isFree: false })
+                      append({ productId: "", variantId: "", variant: "", quantity: 1, unitPrice: 0, isFree: false })
                     }
                   >
                     <Plus className="mr-1.5 h-3.5 w-3.5" />
@@ -733,7 +872,7 @@ export default function OrderForm({
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="shippingDiscount">Discount</Label>
+                    <Label htmlFor="shippingDiscount">Shipping Discount</Label>
                     <Input
                       id="shippingDiscount"
                       type="number"
@@ -860,6 +999,59 @@ export default function OrderForm({
                       </span>
                     </div>
                   )}
+
+                  {/* Discount Section */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-1.5">
+                      <Label className="text-sm">Discount</Label>
+                      <div className="flex rounded-md border overflow-hidden">
+                        <button
+                          type="button"
+                          className={cn(
+                            "px-2.5 py-1 text-xs font-medium transition-colors",
+                            watchedDiscountType === "percent"
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-background hover:bg-accent"
+                          )}
+                          onClick={() => setValue("discountType", "percent")}
+                        >
+                          %
+                        </button>
+                        <button
+                          type="button"
+                          className={cn(
+                            "px-2.5 py-1 text-xs font-medium border-l transition-colors",
+                            watchedDiscountType === "fixed"
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-background hover:bg-accent"
+                          )}
+                          onClick={() => setValue("discountType", "fixed")}
+                        >
+                          EGP
+                        </button>
+                      </div>
+                    </div>
+                    {watchedDiscountType && (
+                      <Input
+                        type="number"
+                        step={watchedDiscountType === "percent" ? "1" : "0.01"}
+                        min="0"
+                        max={watchedDiscountType === "percent" ? 100 : undefined}
+                        {...register("discountValue")}
+                        placeholder={watchedDiscountType === "percent" ? "Enter %" : "Enter EGP"}
+                        className="h-8 text-sm"
+                      />
+                    )}
+                    {orderDiscount > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Order Discount</span>
+                        <span className="tabular-nums font-medium text-red-600">
+                          -{formatCurrency(orderDiscount)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
                   <Separator />
                   <div className="flex justify-between font-bold">
                     <span>Grand Total</span>
@@ -907,6 +1099,55 @@ export default function OrderForm({
           </div>
         </div>
       </form>
+
+      {/* Variant Selection Modal */}
+      <Dialog open={variantModalOpen} onOpenChange={setVariantModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              Select Variant — {(variantModalProduct as any)?.name ?? "Product"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 py-2">
+            {((variantModalProduct as any)?.variants ?? []).length === 0 ? (
+              <p className="col-span-2 text-sm text-muted-foreground text-center py-4">
+                No variants available for this product.
+              </p>
+            ) : (
+              ((variantModalProduct as any)?.variants ?? []).map((variant: any) => (
+                <button
+                  key={variant.id}
+                  type="button"
+                  className="flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors hover:bg-accent"
+                  onClick={() => handleVariantSelected(variant)}
+                >
+                  <span className="text-sm font-medium">{variant.name}</span>
+                  {variant.sku && (
+                    <span className="font-mono text-xs text-muted-foreground">{variant.sku}</span>
+                  )}
+                  <div className="flex items-center justify-between w-full mt-1">
+                    {variant.sellingPrice && (
+                      <span className="text-xs font-medium">
+                        {formatCurrency(parseFloat(variant.sellingPrice))}
+                      </span>
+                    )}
+                    <span
+                      className={cn(
+                        "text-xs",
+                        variant.stockQuantity > 0
+                          ? "text-green-600"
+                          : "text-red-500"
+                      )}
+                    >
+                      Stock: {variant.stockQuantity}
+                    </span>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

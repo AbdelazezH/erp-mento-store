@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { customers } from "@/lib/db/schema";
+import { customers, orders } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { apiError, apiResponse } from "@/lib/utils";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 const updateSchema = z.object({
@@ -20,7 +20,17 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
   const { id } = await params;
   const [row] = await db.select().from(customers).where(eq(customers.id, id));
   if (!row) return apiError("Not found", 404);
-  return apiResponse(row);
+
+  // Get order stats
+  const [stats] = await db
+    .select({
+      orderCount: sql<number>`COUNT(*)::int`,
+      totalSpend: sql<string>`COALESCE(SUM(${orders.totalAmount}), '0')`,
+    })
+    .from(orders)
+    .where(eq(orders.customerId, id));
+
+  return apiResponse({ ...row, orderCount: stats.orderCount, totalSpend: stats.totalSpend });
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
