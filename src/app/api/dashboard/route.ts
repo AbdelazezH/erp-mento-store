@@ -12,7 +12,7 @@ import {
 } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { apiError, apiResponse } from "@/lib/utils";
-import { sql, eq, and, sum, count, avg, ne } from "drizzle-orm";
+import { sql, eq, and, sum, count, avg, ne, inArray } from "drizzle-orm";
 
 export async function GET() {
   const session = await getSession();
@@ -33,6 +33,8 @@ export async function GET() {
     totalInvestment,
     totalGoods,
     totalExpensesAllTime,
+    topProducts,
+    investmentByCategory,
   ] = await Promise.all([
     // Product count
     db.select({ count: count() }).from(products).then((r) => r[0].count),
@@ -128,18 +130,21 @@ export async function GET() {
       `)
       .then((r) => r[0].count),
 
-    // Category analytics: revenue per category
+    // Category analytics: revenue + cost per category (delivered orders only)
     db
       .select({
         categoryName: categories.name,
-        revenue: sql<string>`SUM(${orderLineItems.total})`,
-        units: sql<string>`SUM(${orderLineItems.quantity})`,
+        revenue: sql<string>`COALESCE(SUM(${orderLineItems.total}::numeric), 0)`,
+        cost: sql<string>`COALESCE(SUM(${orderLineItems.unitCost}::numeric * ${orderLineItems.quantity}), 0)`,
+        units: sql<string>`COALESCE(SUM(${orderLineItems.quantity}), 0)`,
       })
       .from(orderLineItems)
+      .innerJoin(orders, eq(orderLineItems.orderId, orders.id))
       .innerJoin(products, eq(orderLineItems.productId, products.id))
       .innerJoin(categories, eq(products.categoryId, categories.id))
+      .where(eq(orders.status, "delivered"))
       .groupBy(categories.name)
-      .orderBy(sql`SUM(${orderLineItems.total}) DESC`)
+      .orderBy(sql`SUM(${orderLineItems.total}::numeric) DESC`)
       .limit(10),
 
     // Recent orders
@@ -164,6 +169,31 @@ export async function GET() {
       .from(bills)
       .where(ne(bills.billType, "supplier_bill"))
       .then((r) => r[0].total),
+
+    // Top selling products by revenue (delivered orders)
+    db
+      .select({
+        productName: products.name,
+        units: sql<string>`COALESCE(SUM(${orderLineItems.quantity}), 0)`,
+        revenue: sql<string>`COALESCE(SUM(${orderLineItems.total}::numeric), 0)`,
+      })
+      .from(orderLineItems)
+      .innerJoin(orders, eq(orderLineItems.orderId, orders.id))
+      .innerJoin(products, eq(orderLineItems.productId, products.id))
+      .where(eq(orders.status, "delivered"))
+      .groupBy(products.id, products.name)
+      .orderBy(sql`SUM(${orderLineItems.total}::numeric) DESC`)
+      .limit(10),
+
+    // Investment by bill type
+    db
+      .select({
+        billType: bills.billType,
+        total: sql<string>`COALESCE(SUM(${bills.totalAmount}::numeric), 0)`,
+      })
+      .from(bills)
+      .groupBy(bills.billType)
+      .orderBy(sql`SUM(${bills.totalAmount}::numeric) DESC`),
   ]);
 
   return apiResponse({
@@ -184,5 +214,7 @@ export async function GET() {
     totalInvestment: totalInvestment ?? "0",
     totalGoods: totalGoods ?? "0",
     totalExpensesAllTime: totalExpensesAllTime ?? "0",
+    topProducts,
+    investmentByCategory,
   });
 }

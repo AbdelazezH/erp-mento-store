@@ -38,6 +38,33 @@ export function useDashboard() {
   return useQuery({ queryKey: ["dashboard"], queryFn: () => apiFetch("/api/dashboard") });
 }
 
+export function usePeriodProfit(month: number, year: number) {
+  return useQuery({
+    queryKey: ["analytics", "period", month, year],
+    queryFn: () =>
+      apiFetch<{
+        salesRevenue: number;
+        costOfGoods: number;
+        operatingExpenses: number;
+        shippingDiscounts: number;
+        freeItemsValue: number;
+        trueNetProfit: number;
+        margin: string;
+      }>(`/api/analytics/period?month=${month}&year=${year}`),
+  });
+}
+
+export function useTrend(groupBy: string, dateFrom: string, dateTo: string) {
+  return useQuery({
+    queryKey: ["analytics", "trend", groupBy, dateFrom, dateTo],
+    queryFn: () =>
+      apiFetch<{ data: { period: string; revenue: number; profit: number }[] }>(
+        `/api/analytics/trend?groupBy=${groupBy}&dateFrom=${dateFrom}&dateTo=${dateTo}`,
+      ),
+    enabled: !!dateFrom && !!dateTo,
+  });
+}
+
 // ─── Categories ───────────────────────────────────────────────────────────────
 
 export function useCategories() {
