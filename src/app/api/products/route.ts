@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { products, categories, suppliers, productVariants, productProperties } from "@/lib/db/schema";
+import { products, categories, suppliers, productVariants, productProperties, productImages } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { apiError, apiResponse } from "@/lib/utils";
 import { asc, desc, eq, ilike, and, or, sql } from "drizzle-orm";
@@ -81,7 +81,12 @@ export async function GET(req: NextRequest) {
         `,
         sku: products.sku,
         barcode: products.barcode,
-        imageUrl: products.imageUrl,
+        imageUrl: sql<string>`
+          COALESCE(
+            ${products.imageUrl},
+            (SELECT pi.image_url FROM product_images pi WHERE pi.product_id = ${products.id} ORDER BY pi.sort_order ASC LIMIT 1)
+          )
+        `,
         hasVariants: products.hasVariants,
         isPublished: products.isPublished,
         createdAt: products.createdAt,
