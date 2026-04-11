@@ -47,6 +47,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Plus,
   Search,
   MoreHorizontal,
@@ -55,12 +62,45 @@ import {
   Users,
 } from "lucide-react";
 
+const EGYPT_GOVERNORATES = [
+  "Cairo",
+  "Giza",
+  "Alexandria",
+  "Qalyubia",
+  "Sharqia",
+  "Dakahlia",
+  "Beheira",
+  "Monufia",
+  "Gharbia",
+  "Kafr El Sheikh",
+  "Damietta",
+  "Port Said",
+  "Ismailia",
+  "Suez",
+  "North Sinai",
+  "South Sinai",
+  "Faiyum",
+  "Beni Suef",
+  "Minya",
+  "Assiut",
+  "Sohag",
+  "Qena",
+  "Luxor",
+  "Aswan",
+  "Red Sea",
+  "New Valley",
+  "Matrouh",
+  "6th of October",
+  "Obour",
+];
+
 // ─── Schema ──────────────────────────────────────────────────────────────────
 
 const customerSchema = z.object({
   name: z.string().min(1, "Name is required"),
   email: z.string().email("Invalid email").or(z.literal("")).optional(),
   phone: z.string().optional(),
+  governorate: z.string().optional(),
   address: z.string().optional(),
   notes: z.string().optional(),
 });
@@ -87,6 +127,8 @@ function CustomerFormDialog({
     register,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<CustomerFormValues>({
     resolver: zodResolver(customerSchema),
@@ -94,6 +136,7 @@ function CustomerFormDialog({
       name: "",
       email: "",
       phone: "",
+      governorate: "",
       address: "",
       notes: "",
       ...defaultValues,
@@ -152,6 +195,26 @@ function CustomerFormDialog({
           <div className="space-y-1.5">
             <Label htmlFor="phone">Phone</Label>
             <Input id="phone" {...register("phone")} placeholder="+20 1xx xxx xxxx" />
+          </div>
+
+          {/* Governorate */}
+          <div className="space-y-1.5">
+            <Label>Governorate</Label>
+            <Select
+              value={watch("governorate") || ""}
+              onValueChange={(val) => setValue("governorate", val)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select governorate" />
+              </SelectTrigger>
+              <SelectContent>
+                {EGYPT_GOVERNORATES.map((gov) => (
+                  <SelectItem key={gov} value={gov}>
+                    {gov}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Address */}
@@ -375,6 +438,7 @@ export default function CustomersPage() {
             name: editCustomer.name ?? "",
             email: editCustomer.email ?? "",
             phone: editCustomer.phone ?? "",
+            governorate: editCustomer.governorate ?? "",
             address: editCustomer.address ?? "",
             notes: editCustomer.notes ?? "",
           }}
