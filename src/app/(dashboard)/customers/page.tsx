@@ -194,7 +194,15 @@ function CustomerFormDialog({
           {/* Phone */}
           <div className="space-y-1.5">
             <Label htmlFor="phone">Phone</Label>
-            <Input id="phone" {...register("phone")} placeholder="+20 1xx xxx xxxx" />
+            <Input
+              id="phone"
+              placeholder="+20 1xx xxx xxxx"
+              value={watch("phone") || ""}
+              onChange={(e) => {
+                const en = e.target.value.replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 1632));
+                setValue("phone", en);
+              }}
+            />
           </div>
 
           {/* Governorate */}
