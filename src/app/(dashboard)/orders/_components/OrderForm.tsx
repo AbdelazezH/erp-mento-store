@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm, useFieldArray, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
@@ -270,7 +270,7 @@ export default function OrderForm({
 
   const { fields, append, remove } = useFieldArray({ control, name: "items" });
 
-  const watchedItems = watch("items");
+  const watchedItems = useWatch({ control, name: "items" });
   const watchedShippingFee = watch("shippingFee");
   const watchedShippingDiscount = watch("shippingDiscount");
   const watchedCampaignId = watch("campaignId");
@@ -296,31 +296,20 @@ export default function OrderForm({
   );
 
   // Calc summary
-  const { subtotal, totalCost, freeItemsCost, shippingNet, costProfileTotal, orderDiscount, grandTotal, estimatedProfit } = useMemo(() => {
+  const { subtotal, totalCost, freeItemsValue, shippingNet, costProfileTotal, orderDiscount, grandTotal, estimatedProfit } = useMemo(() => {
+    // Subtotal includes ALL items (paid + free) so the deduction is visible
     const sub = (watchedItems ?? []).reduce((sum, item) => {
-      if (item.isFree) return sum;
       return sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
     }, 0);
 
-    const cogs = (watchedItems ?? []).reduce((sum, item) => {
-      if (item.isFree) return sum;
-      const prod = (products as any[]).find((p: any) => p.id === item.productId);
-      let cost = prod ? parseFloat(prod.averageCost ?? prod.basePrice ?? "0") : 0;
-
-      if (selectedCampaign && prod) {
-        const campaignProd = (selectedCampaign.products ?? []).find(
-          (cp: any) => cp.productId === prod.id,
-        );
-        if (campaignProd?.cogs) {
-          cost = parseFloat(campaignProd.cogs);
-        }
-      }
-
-      return sum + cost * (Number(item.quantity) || 0);
+    // Revenue value being given away for free (shown as a negative deduction line)
+    const freeVal = (watchedItems ?? []).reduce((sum, item) => {
+      if (!item.isFree) return sum;
+      return sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
     }, 0);
 
-    const freeItemsCost = (watchedItems ?? []).reduce((sum, item) => {
-      if (!item.isFree) return sum;
+    // COGS includes ALL items (paid + free) — full cost of goods sold
+    const cogs = (watchedItems ?? []).reduce((sum, item) => {
       const prod = (products as any[]).find((p: any) => p.id === item.productId);
       let cost = prod ? parseFloat(prod.averageCost ?? prod.basePrice ?? "0") : 0;
 
@@ -340,19 +329,20 @@ export default function OrderForm({
 
     const net = Math.max(0, (Number(watchedShippingFee) || 0) - (Number(watchedShippingDiscount) || 0));
 
-    // Calculate order discount
+    // Calculate order discount (based on paid revenue + shipping)
     let disc = 0;
     if (watchedDiscountType === "percent") {
-      disc = (sub + net) * ((Number(watchedDiscountValue) || 0) / 100);
+      disc = (sub - freeVal + net) * ((Number(watchedDiscountValue) || 0) / 100);
     } else if (watchedDiscountType === "fixed") {
       disc = Number(watchedDiscountValue) || 0;
     }
-    disc = Math.min(disc, sub + net);
+    disc = Math.min(disc, sub - freeVal + net);
 
-    const grand = sub + net - disc;
-    const profit = grand - cogs - cpTotal - freeItemsCost;
+    // Grand total = paid revenue + shipping (net) − order discount
+    const grand = sub - freeVal + net - disc;
+    const profit = grand - cogs - cpTotal;
 
-    return { subtotal: sub, totalCost: cogs, freeItemsCost, shippingNet: net, costProfileTotal: cpTotal, orderDiscount: disc, grandTotal: grand, estimatedProfit: profit };
+    return { subtotal: sub, totalCost: cogs, freeItemsValue: freeVal, shippingNet: net, costProfileTotal: cpTotal, orderDiscount: disc, grandTotal: grand, estimatedProfit: profit };
   }, [watchedItems, watchedShippingFee, watchedShippingDiscount, products, selectedCampaign, watchedCPEntries, watchedDiscountType, watchedDiscountValue]);
 
   // Auto-recalculate per_item cost profile amounts when item quantities change
@@ -756,13 +746,13 @@ export default function OrderForm({
                                 className="h-8 text-sm w-24"
                               />
                             </TableCell>
-                            <TableCell className="w-[120px] min-w-[120px]">
+                            <TableCell className="w-[80px] min-w-[80px] max-w-[80px]">
                               <Input
                                 type="number"
                                 step="0.01"
                                 min="0"
                                 {...register(`items.${idx}.unitPrice`)}
-                                className="h-8 text-sm w-full"
+                                className="h-8 text-sm w-[80px]"
                                 disabled={isFree}
                               />
                             </TableCell>
@@ -1016,11 +1006,11 @@ export default function OrderForm({
                       -{formatCurrency(totalCost)}
                     </span>
                   </div>
-                  {freeItemsCost > 0 && (
+                  {freeItemsValue > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Free Items</span>
                       <span className="tabular-nums font-medium text-red-600">
-                        -{formatCurrency(freeItemsCost)}
+                        -{formatCurrency(freeItemsValue)}
                       </span>
                     </div>
                   )}
