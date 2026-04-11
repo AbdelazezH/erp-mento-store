@@ -44,6 +44,18 @@ export const attributeTypeEnum = pgEnum("attribute_type", ["text", "color"]);
 
 export const userRoleEnum = pgEnum("user_role", ["admin", "worker"]);
 
+export const costCategoryEnum = pgEnum("cost_category", [
+  "packaging",
+  "handling",
+  "transaction_fee",
+]);
+
+export const applicationRuleEnum = pgEnum("application_rule", [
+  "per_order",
+  "per_item",
+  "manual",
+]);
+
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export const users = pgTable("users", {
@@ -308,6 +320,18 @@ export const campaignProducts = pgTable("campaign_products", {
   campaignPrice: numeric("campaign_price", { precision: 12, scale: 2 }),
   cogs: numeric("cogs", { precision: 12, scale: 2 }),
   expectedUnits: integer("expected_units").default(0),
+});
+
+// ─── Cost Profiles ────────────────────────────────────────────────────────────
+
+export const costProfiles = pgTable("cost_profiles", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  category: costCategoryEnum("category").notNull(),
+  unitCost: numeric("unit_cost", { precision: 12, scale: 2 }).notNull().default("0"),
+  applicationRule: applicationRuleEnum("application_rule").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 // ─── Relations ────────────────────────────────────────────────────────────────

@@ -517,6 +517,40 @@ export function useAddAttributeValue() {
   });
 }
 
+// ─── Cost Profiles ────────────────────────────────────────────────────────────
+
+export function useCostProfiles() {
+  return useQuery({ queryKey: ["cost-profiles"], queryFn: () => apiFetch<any>("/api/cost-profiles").then((r) => r.data) });
+}
+
+export function useCreateCostProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { name: string; category: string; unitCost: string; applicationRule: string; isActive?: boolean }) =>
+      post("/api/cost-profiles", data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["cost-profiles"] }); toast.success("Cost profile created"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useUpdateCostProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string; [k: string]: any }) => put(`/api/cost-profiles/${id}`, data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["cost-profiles"] }); toast.success("Cost profile updated"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useDeleteCostProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => del(`/api/cost-profiles/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["cost-profiles"] }); toast.success("Cost profile deleted"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
 // ─── Campaigns ────────────────────────────────────────────────────────────────
 
 export function useCampaigns() {

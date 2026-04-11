@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Settings,
   KeyRound,
+  DollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -115,6 +116,7 @@ export function Sidebar({ user }: SidebarProps) {
             )}
             {[
               { href: "/settings/users", label: "Team Members", icon: Users },
+              { href: "/settings/cost-profiles", label: "Cost Profiles", icon: DollarSign },
               { href: "/settings/profile", label: "My Profile", icon: KeyRound },
             ].map(({ href, label, icon: Icon }) => {
               const isActive = pathname.startsWith(href);
