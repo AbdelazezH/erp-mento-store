@@ -562,7 +562,7 @@ export default function OrderForm({
                             />
                           </div>
                         </PopoverTrigger>
-                        <PopoverContent className="p-0 w-[var(--radix-popover-trigger-width)]" align="start">
+                        <PopoverContent className="p-0 w-[var(--radix-popover-trigger-width)]" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
                           <Command shouldFilter={false}>
                             <CommandList>
                               {customerSearchDebounced && (customerSearchResults as any[])?.length === 0 ? (
