@@ -1,38 +1,16 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useForm, useFieldArray } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { useRouter } from "next/navigation";
 import {
   useInfiniteOrders,
-  useCreateOrder,
   useUpdateOrder,
   useDeleteOrder,
-  useCustomers,
-  useProducts,
 } from "@/hooks/use-api";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -59,42 +37,17 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Separator } from "@/components/ui/separator";
 import {
   Plus,
   MoreHorizontal,
   Pencil,
   Trash2,
   ShoppingCart,
-  X,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type OrderStatus = "draft" | "pending" | "delivered" | "cancelled";
-
-// ─── Schema ──────────────────────────────────────────────────────────────────
-
-const orderItemSchema = z.object({
-  productId: z.string().min(1, "Product required"),
-  variant: z.string().optional(),
-  quantity: z.coerce.number().int().min(1, "Min 1"),
-  unitPrice: z.coerce.number().min(0),
-  isFree: z.boolean().default(false),
-});
-
-const orderSchema = z.object({
-  customerId: z.string().min(1, "Customer required"),
-  orderDate: z.string().optional(),
-  status: z.enum(["draft", "pending", "delivered", "cancelled"]),
-  notes: z.string().optional(),
-  customerFeedback: z.string().optional(),
-  shippingFee: z.coerce.number().min(0).default(0),
-  shippingDiscount: z.coerce.number().min(0).default(0),
-  items: z.array(orderItemSchema).min(1, "At least one item required"),
-});
-
-type OrderFormValues = z.infer<typeof orderSchema>;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -119,369 +72,11 @@ const STATUS_TABS: { value: string; label: string }[] = [
   { value: "cancelled", label: "Cancelled" },
 ];
 
-// ─── Order Form Dialog ────────────────────────────────────────────────────────
-
-function OrderFormDialog({
-  open,
-  onClose,
-  defaultValues,
-  orderId,
-}: {
-  open: boolean;
-  onClose: () => void;
-  defaultValues?: Partial<OrderFormValues>;
-  orderId?: string;
-}) {
-  const createOrder = useCreateOrder();
-  const updateOrder = useUpdateOrder();
-  const { data: customers = [] } = useCustomers();
-  const { data: products = [] } = useProducts();
-
-  const {
-    register,
-    handleSubmit,
-    watch,
-    setValue,
-    reset,
-    control,
-    formState: { errors, isSubmitting },
-  } = useForm<OrderFormValues>({
-    resolver: zodResolver(orderSchema),
-    defaultValues: {
-      customerId: "",
-      status: "pending",
-      shippingFee: 0,
-      shippingDiscount: 0,
-      items: [{ productId: "", variant: "", quantity: 1, unitPrice: 0, isFree: false }],
-      ...defaultValues,
-    },
-  });
-
-  const { fields, append, remove } = useFieldArray({ control, name: "items" });
-
-  const watchedItems = watch("items");
-  const watchedShippingFee = watch("shippingFee");
-  const watchedShippingDiscount = watch("shippingDiscount");
-
-  // Calc summary
-  const { subtotal, shippingNet, grandTotal, estimatedProfit } = useMemo(() => {
-    const sub = (watchedItems ?? []).reduce((sum, item) => {
-      if (item.isFree) return sum;
-      return sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
-    }, 0);
-    const net = Math.max(0, (Number(watchedShippingFee) || 0) - (Number(watchedShippingDiscount) || 0));
-    const grand = sub + net;
-
-    // Estimate profit = revenue - COGS (use product averageCost)
-    const cogs = (watchedItems ?? []).reduce((sum, item) => {
-      if (item.isFree) return sum;
-      const prod = (products as any[]).find((p) => p.id === item.productId);
-      const cost = prod ? parseFloat(prod.averageCost ?? prod.basePrice ?? "0") : 0;
-      return sum + cost * (Number(item.quantity) || 0);
-    }, 0);
-    const profit = grand - cogs;
-    return { subtotal: sub, shippingNet: net, grandTotal: grand, estimatedProfit: profit };
-  }, [watchedItems, watchedShippingFee, watchedShippingDiscount, products]);
-
-  const onSubmit = async (data: OrderFormValues) => {
-    const payload = { ...data, totalAmount: grandTotal };
-    if (orderId) {
-      await updateOrder.mutateAsync({ id: orderId, ...payload });
-    } else {
-      await createOrder.mutateAsync(payload);
-    }
-    reset();
-    onClose();
-  };
-
-  const handleClose = () => {
-    reset();
-    onClose();
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
-      <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{orderId ? "Edit Order" : "New Order"}</DialogTitle>
-        </DialogHeader>
-
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-          {/* Row 1: customer + date + status */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-1.5">
-              <Label>
-                Customer <span className="text-destructive">*</span>
-              </Label>
-              <Select
-                defaultValue={defaultValues?.customerId ?? ""}
-                onValueChange={(v) => setValue("customerId", v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select customer" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(customers as any[]).map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.customerId && (
-                <p className="text-xs text-destructive">{errors.customerId.message}</p>
-              )}
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="orderDate">Order Date</Label>
-              <Input id="orderDate" type="date" {...register("orderDate")} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Status</Label>
-              <Select
-                defaultValue={defaultValues?.status ?? "pending"}
-                onValueChange={(v) => setValue("status", v as OrderStatus)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="draft">Draft</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="delivered">Delivered</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Row 2: shipping */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="shippingFee">Shipping Fee</Label>
-              <Input
-                id="shippingFee"
-                type="number"
-                step="0.01"
-                min="0"
-                {...register("shippingFee")}
-                placeholder="0.00"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="shippingDiscount">Shipping Discount</Label>
-              <Input
-                id="shippingDiscount"
-                type="number"
-                step="0.01"
-                min="0"
-                {...register("shippingDiscount")}
-                placeholder="0.00"
-              />
-            </div>
-          </div>
-
-          {/* Notes + Feedback */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea id="notes" {...register("notes")} placeholder="Internal notes…" rows={2} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="customerFeedback">Customer Feedback</Label>
-              <Textarea
-                id="customerFeedback"
-                {...register("customerFeedback")}
-                placeholder="Customer feedback…"
-                rows={2}
-              />
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* Line Items */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label className="text-base font-semibold">Order Items</Label>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  append({ productId: "", variant: "", quantity: 1, unitPrice: 0, isFree: false })
-                }
-              >
-                <Plus className="mr-1.5 h-3.5 w-3.5" />
-                Add Item
-              </Button>
-            </div>
-
-            {errors.items && !Array.isArray(errors.items) && (
-              <p className="text-xs text-destructive">{(errors.items as any).message}</p>
-            )}
-
-            <div className="rounded-lg border overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Product</TableHead>
-                    <TableHead className="w-28">Variant</TableHead>
-                    <TableHead className="w-20">Qty</TableHead>
-                    <TableHead className="w-28">Unit Price</TableHead>
-                    <TableHead className="w-16 text-center">Free?</TableHead>
-                    <TableHead className="w-28 text-right">Total</TableHead>
-                    <TableHead className="w-10"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {fields.map((field, idx) => {
-                    const item = watchedItems?.[idx];
-                    const isFree = item?.isFree;
-                    const lineTotal = isFree
-                      ? 0
-                      : (Number(item?.quantity) || 0) * (Number(item?.unitPrice) || 0);
-
-                    return (
-                      <TableRow key={field.id}>
-                        <TableCell>
-                          <Select
-                            defaultValue={defaultValues?.items?.[idx]?.productId ?? ""}
-                            onValueChange={(v) => {
-                              setValue(`items.${idx}.productId`, v);
-                              const prod = (products as any[]).find((p) => p.id === v);
-                              if (prod?.sellingPrice) {
-                                setValue(
-                                  `items.${idx}.unitPrice`,
-                                  parseFloat(prod.sellingPrice),
-                                );
-                              }
-                            }}
-                          >
-                            <SelectTrigger className="h-8 text-sm">
-                              <SelectValue placeholder="Select product" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {(products as any[]).map((p) => (
-                                <SelectItem key={p.id} value={p.id}>
-                                  {p.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          {errors.items?.[idx]?.productId && (
-                            <p className="text-xs text-destructive mt-0.5">
-                              {errors.items[idx]?.productId?.message}
-                            </p>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            {...register(`items.${idx}.variant`)}
-                            placeholder="e.g. Red, L"
-                            className="h-8 text-sm"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            min="1"
-                            step="1"
-                            {...register(`items.${idx}.quantity`)}
-                            className="h-8 text-sm"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            {...register(`items.${idx}.unitPrice`)}
-                            className="h-8 text-sm"
-                            disabled={isFree}
-                          />
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <input
-                            type="checkbox"
-                            {...register(`items.${idx}.isFree`)}
-                            className="h-4 w-4 rounded border-input"
-                          />
-                        </TableCell>
-                        <TableCell className="text-right font-medium tabular-nums text-sm">
-                          {isFree ? (
-                            <span className="text-muted-foreground italic text-xs">Free</span>
-                          ) : (
-                            formatCurrency(lineTotal)
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                            onClick={() => fields.length > 1 && remove(idx)}
-                            disabled={fields.length === 1}
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-
-            {/* Order Footer Summary */}
-            <div className="flex justify-end">
-              <div className="rounded-lg border bg-muted/30 p-4 space-y-2 min-w-[260px]">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Subtotal</span>
-                  <span className="tabular-nums">{formatCurrency(subtotal)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Shipping</span>
-                  <span className="tabular-nums">{formatCurrency(shippingNet)}</span>
-                </div>
-                <Separator />
-                <div className="flex justify-between font-bold">
-                  <span>Grand Total</span>
-                  <span className="tabular-nums">{formatCurrency(grandTotal)}</span>
-                </div>
-                <div
-                  className={`flex justify-between text-sm font-medium ${
-                    estimatedProfit >= 0 ? "text-green-600" : "text-red-600"
-                  }`}
-                >
-                  <span>Est. Profit</span>
-                  <span className="tabular-nums">{formatCurrency(estimatedProfit)}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={handleClose}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Saving…" : orderId ? "Save Changes" : "Create Order"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function OrdersPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState("all");
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editOrder, setEditOrder] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const {
@@ -519,7 +114,7 @@ export default function OrdersPage() {
       (s, o) => s + parseFloat(o.totalAmount ?? "0"),
       0,
     );
-    const profit = all.reduce((s, o) => s + parseFloat(o.estimatedProfit ?? "0"), 0);
+    const profit = all.reduce((s, o) => s + parseFloat(o.profit ?? "0"), 0);
     return { total: all.length, revenue, profit };
   }, [orders]);
 
@@ -541,7 +136,7 @@ export default function OrdersPage() {
           <h1 className="text-2xl font-bold tracking-tight">Sales Orders</h1>
           <p className="text-sm text-muted-foreground">Manage customer orders</p>
         </div>
-        <Button onClick={() => setCreateOpen(true)}>
+        <Button onClick={() => router.push("/orders/new")}>
           <Plus className="mr-2 h-4 w-4" />
           New Order
         </Button>
@@ -624,7 +219,7 @@ export default function OrdersPage() {
               : "Get started by creating your first order."}
           </p>
           {activeTab === "all" && (
-            <Button className="mt-4" onClick={() => setCreateOpen(true)}>
+            <Button className="mt-4" onClick={() => router.push("/orders/new")}>
               <Plus className="mr-2 h-4 w-4" />
               New Order
             </Button>
@@ -649,14 +244,14 @@ export default function OrdersPage() {
             </TableHeader>
             <TableBody>
               {(orders as any[]).map((order) => {
-                const profit = parseFloat(order.estimatedProfit ?? "0");
+                const profit = parseFloat(order.profit ?? "0");
                 return (
                   <TableRow key={order.id}>
                     <TableCell className="font-mono text-xs text-muted-foreground">
                       {order.orderNumber ?? "—"}
                     </TableCell>
                     <TableCell className="font-medium">
-                      {order.customer?.name ?? "—"}
+                      {order.customerName ?? "—"}
                     </TableCell>
                     <TableCell className="text-sm">
                       {formatDate(order.orderDate ?? order.createdAt)}
@@ -691,7 +286,7 @@ export default function OrdersPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => setEditOrder(order)}>
+                          <DropdownMenuItem onClick={() => router.push(`/orders/${order.id}`)}>
                             <Pencil className="mr-2 h-4 w-4" />
                             Edit
                           </DropdownMenuItem>
@@ -739,37 +334,6 @@ export default function OrdersPage() {
         </div>
         {hasNextPage && <div ref={sentinelRef} className="h-1" />}
         </>
-      )}
-
-      {/* Create Dialog */}
-      <OrderFormDialog open={createOpen} onClose={() => setCreateOpen(false)} />
-
-      {/* Edit Dialog */}
-      {editOrder && (
-        <OrderFormDialog
-          open={!!editOrder}
-          onClose={() => setEditOrder(null)}
-          orderId={editOrder.id}
-          defaultValues={{
-            customerId: editOrder.customerId ?? "",
-            orderDate: editOrder.orderDate ? editOrder.orderDate.substring(0, 10) : "",
-            status: editOrder.status ?? "pending",
-            notes: editOrder.notes ?? "",
-            customerFeedback: editOrder.customerFeedback ?? "",
-            shippingFee: parseFloat(editOrder.shippingFee ?? "0"),
-            shippingDiscount: parseFloat(editOrder.shippingDiscount ?? "0"),
-            items:
-              editOrder.items?.length > 0
-                ? editOrder.items.map((i: any) => ({
-                    productId: i.productId ?? "",
-                    variant: i.variant ?? "",
-                    quantity: parseInt(i.quantity ?? "1"),
-                    unitPrice: parseFloat(i.unitPrice ?? "0"),
-                    isFree: i.isFree ?? false,
-                  }))
-                : [{ productId: "", variant: "", quantity: 1, unitPrice: 0, isFree: false }],
-          }}
-        />
       )}
 
       {/* Delete Confirmation */}

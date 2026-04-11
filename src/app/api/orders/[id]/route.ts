@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { orders, orderLineItems, customers, products, productVariants } from "@/lib/db/schema";
+import { orders, orderLineItems, customers, campaigns, products, productVariants } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { apiError, apiResponse } from "@/lib/utils";
 import { eq } from "drizzle-orm";
@@ -23,6 +23,7 @@ const lineItemSchema = z.object({
 
 const updateSchema = z.object({
   customerId: z.string().uuid().optional().nullable(),
+  campaignId: z.string().uuid().optional().nullable(),
   orderDate: z.string().optional(),
   status: z.enum(["draft", "pending", "delivered", "cancelled"]).optional(),
   shippingFee: z.string().optional(),
@@ -54,10 +55,13 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
       notes: orders.notes,
       customerFeedback: orders.customerFeedback,
       createdAt: orders.createdAt,
+      campaignId: orders.campaignId,
       customerName: customers.name,
+      campaignName: campaigns.name,
     })
     .from(orders)
     .leftJoin(customers, eq(orders.customerId, customers.id))
+    .leftJoin(campaigns, eq(orders.campaignId, campaigns.id))
     .where(eq(orders.id, id));
 
   if (!order) return apiError("Not found", 404);

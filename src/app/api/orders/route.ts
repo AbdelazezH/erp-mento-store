@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { orders, orderLineItems, customers, products, productVariants } from "@/lib/db/schema";
+import { orders, orderLineItems, customers, campaigns, products, productVariants } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { apiError, apiResponse, generateOrderNumber } from "@/lib/utils";
 import { desc, eq, ilike, and, sql, count as drizzleCount } from "drizzle-orm";
@@ -22,6 +22,7 @@ const lineItemSchema = z.object({
 
 const createSchema = z.object({
   customerId: z.string().uuid().optional().nullable(),
+  campaignId: z.string().uuid().optional().nullable(),
   orderDate: z.string().optional(),
   status: z.enum(["draft", "pending", "delivered", "cancelled"]).default("pending"),
   shippingFee: z.string().default("0"),
@@ -66,9 +67,12 @@ export async function GET(req: NextRequest) {
         createdAt: orders.createdAt,
         customerName: customers.name,
         customerPhone: customers.phone,
+        campaignId: orders.campaignId,
+        campaignName: campaigns.name,
       })
       .from(orders)
       .leftJoin(customers, eq(orders.customerId, customers.id))
+      .leftJoin(campaigns, eq(orders.campaignId, campaigns.id))
       .where(whereClause)
       .orderBy(desc(orders.createdAt))
       .limit(limit)

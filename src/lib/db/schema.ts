@@ -255,6 +255,9 @@ export const orders = pgTable("orders", {
   shippingDiscountReason: text("shipping_discount_reason"),
   notes: text("notes"),
   customerFeedback: text("customer_feedback"),
+  campaignId: uuid("campaign_id").references(() => campaigns.id, {
+    onDelete: "set null",
+  }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
