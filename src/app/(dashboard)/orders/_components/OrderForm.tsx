@@ -682,7 +682,7 @@ export default function OrderForm({
                         <TableHead>Product</TableHead>
                         <TableHead className="w-28">Variant</TableHead>
                         <TableHead className="w-24">Qty</TableHead>
-                        <TableHead className="w-28">Unit Price</TableHead>
+                        <TableHead className="w-36">Unit Price</TableHead>
                         <TableHead className="w-16 text-center">Free?</TableHead>
                         <TableHead className="w-28 text-right">Total</TableHead>
                         <TableHead className="w-10"></TableHead>
@@ -745,7 +745,7 @@ export default function OrderForm({
                                 step="0.01"
                                 min="0"
                                 {...register(`items.${idx}.unitPrice`)}
-                                className="h-8 text-sm"
+                                className="h-8 text-sm w-full"
                                 disabled={isFree}
                               />
                             </TableCell>
