@@ -3,13 +3,14 @@ import { db } from "@/lib/db";
 import { customers, orders } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { apiError, apiResponse } from "@/lib/utils";
-import { asc, count, sum, eq, ilike, sql } from "drizzle-orm";
+import { asc, count, sum, eq, ilike, sql, or } from "drizzle-orm";
 import { z } from "zod";
 
 const createSchema = z.object({
   name: z.string().min(1),
   email: z.string().email().optional().or(z.literal("")).nullable(),
   phone: z.string().optional().nullable(),
+  phone2: z.string().optional().nullable(),
   governorate: z.string().optional().nullable(),
   address: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
@@ -24,7 +25,13 @@ export async function GET(req: NextRequest) {
   const limit = Math.min(parseInt(searchParams.get("limit") ?? "50", 10) || 50, 200);
   const offset = parseInt(searchParams.get("offset") ?? "0", 10) || 0;
 
-  const whereClause = search ? ilike(customers.name, `%${search}%`) : undefined;
+  const whereClause = search
+    ? or(
+        ilike(customers.name, `%${search}%`),
+        ilike(customers.phone, `%${search}%`),
+        ilike(customers.phone2, `%${search}%`),
+      )
+    : undefined;
 
   const [rows, [{ total }]] = await Promise.all([
     db
@@ -33,6 +40,7 @@ export async function GET(req: NextRequest) {
         name: customers.name,
         email: customers.email,
         phone: customers.phone,
+        phone2: customers.phone2,
         governorate: customers.governorate,
         address: customers.address,
         notes: customers.notes,

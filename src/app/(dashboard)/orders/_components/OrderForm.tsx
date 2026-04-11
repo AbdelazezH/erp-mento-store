@@ -67,8 +67,10 @@ import {
   Mail,
   MapPin,
   PackageCheck,
+  UserPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CustomerFormDialog } from "@/components/features/customers/customer-form-dialog";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -234,6 +236,18 @@ export default function OrderForm({
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [productSearch, setProductSearch] = useState("");
+
+  // Customer search state
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [customerSearchDebounced, setCustomerSearchDebounced] = useState("");
+  const [customerModalOpen, setCustomerModalOpen] = useState(false);
+  const { data: customerSearchResults } = useCustomers(customerSearchDebounced || undefined);
+
+  // Debounce customer search
+  useEffect(() => {
+    const timer = setTimeout(() => setCustomerSearchDebounced(customerSearch), 300);
+    return () => clearTimeout(timer);
+  }, [customerSearch]);
 
   // Variant modal state
   const [variantModalOpen, setVariantModalOpen] = useState(false);
@@ -521,21 +535,76 @@ export default function OrderForm({
                     <Label>
                       Customer <span className="text-destructive">*</span>
                     </Label>
-                    <Select
-                      defaultValue={defaultValues?.customerId ?? ""}
-                      onValueChange={(v) => setValue("customerId", v)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select customer" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(customers as any[]).map((c: any) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            {c.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {selectedCustomer ? (
+                      <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+                        <span className="font-medium">{selectedCustomer.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => { setValue("customerId", ""); setCustomerSearch(""); }}
+                          className="text-muted-foreground hover:text-foreground"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <Popover open={customerSearch.length > 0} onOpenChange={(v) => { if (!v) setCustomerSearch(""); }}>
+                        <PopoverTrigger asChild>
+                          <div className="relative">
+                            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                            <Input
+                              placeholder="Search by name or phone…"
+                              value={customerSearch}
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 1632));
+                                setCustomerSearch(val);
+                              }}
+                              className="pl-8"
+                            />
+                          </div>
+                        </PopoverTrigger>
+                        <PopoverContent className="p-0 w-[var(--radix-popover-trigger-width)]" align="start">
+                          <Command shouldFilter={false}>
+                            <CommandList>
+                              {customerSearchDebounced && (customerSearchResults as any[])?.length === 0 ? (
+                                <div className="p-3 space-y-2">
+                                  <p className="text-sm text-muted-foreground">No customer found.</p>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="w-full"
+                                    onClick={() => {
+                                      setCustomerModalOpen(true);
+                                      setCustomerSearch("");
+                                    }}
+                                  >
+                                    <UserPlus className="mr-1.5 h-3.5 w-3.5" />
+                                    Create new customer
+                                  </Button>
+                                </div>
+                              ) : (
+                                <CommandGroup>
+                                  {(customerSearchResults as any[] ?? []).map((c: any) => (
+                                    <CommandItem
+                                      key={c.id}
+                                      value={c.id}
+                                      onSelect={() => {
+                                        setValue("customerId", c.id);
+                                        setCustomerSearch("");
+                                      }}
+                                    >
+                                      <Check className={cn("mr-2 h-4 w-4", watchedCustomerId === c.id ? "opacity-100" : "opacity-0")} />
+                                      <span>{c.name}</span>
+                                      {c.phone && <span className="ml-2 text-xs text-muted-foreground">{c.phone}</span>}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              )}
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    )}
                     {errors.customerId && (
                       <p className="text-xs text-destructive">{errors.customerId.message}</p>
                     )}
@@ -1171,6 +1240,20 @@ export default function OrderForm({
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Customer Creation Modal */}
+      <CustomerFormDialog
+        open={customerModalOpen}
+        onClose={(created) => {
+          setCustomerModalOpen(false);
+          if (created?.id) {
+            setValue("customerId", created.id);
+          }
+        }}
+        defaultValues={{
+          phone: customerSearchDebounced || "",
+        }}
+      />
     </div>
   );
 }

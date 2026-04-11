@@ -1,27 +1,13 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import {
   useInfiniteCustomers,
-  useCreateCustomer,
-  useUpdateCustomer,
   useDeleteCustomer,
 } from "@/hooks/use-api";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -47,13 +33,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Plus,
   Search,
   MoreHorizontal,
@@ -61,204 +40,7 @@ import {
   Trash2,
   Users,
 } from "lucide-react";
-
-const EGYPT_GOVERNORATES = [
-  "Cairo",
-  "Giza",
-  "Alexandria",
-  "Qalyubia",
-  "Sharqia",
-  "Dakahlia",
-  "Beheira",
-  "Monufia",
-  "Gharbia",
-  "Kafr El Sheikh",
-  "Damietta",
-  "Port Said",
-  "Ismailia",
-  "Suez",
-  "North Sinai",
-  "South Sinai",
-  "Faiyum",
-  "Beni Suef",
-  "Minya",
-  "Assiut",
-  "Sohag",
-  "Qena",
-  "Luxor",
-  "Aswan",
-  "Red Sea",
-  "New Valley",
-  "Matrouh",
-  "6th of October",
-  "Obour",
-];
-
-// ─── Schema ──────────────────────────────────────────────────────────────────
-
-const customerSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  email: z.string().email("Invalid email").or(z.literal("")).optional(),
-  phone: z.string().optional(),
-  governorate: z.string().optional(),
-  address: z.string().optional(),
-  notes: z.string().optional(),
-});
-
-type CustomerFormValues = z.infer<typeof customerSchema>;
-
-// ─── Customer Form Dialog ─────────────────────────────────────────────────────
-
-function CustomerFormDialog({
-  open,
-  onClose,
-  defaultValues,
-  customerId,
-}: {
-  open: boolean;
-  onClose: () => void;
-  defaultValues?: Partial<CustomerFormValues>;
-  customerId?: string;
-}) {
-  const createCustomer = useCreateCustomer();
-  const updateCustomer = useUpdateCustomer();
-
-  const {
-    register,
-    handleSubmit,
-    reset,
-    setValue,
-    watch,
-    formState: { errors, isSubmitting },
-  } = useForm<CustomerFormValues>({
-    resolver: zodResolver(customerSchema),
-    defaultValues: {
-      name: "",
-      email: "",
-      phone: "",
-      governorate: "",
-      address: "",
-      notes: "",
-      ...defaultValues,
-    },
-  });
-
-  const onSubmit = async (data: CustomerFormValues) => {
-    if (customerId) {
-      await updateCustomer.mutateAsync({ id: customerId, ...data });
-    } else {
-      await createCustomer.mutateAsync(data);
-    }
-    reset();
-    onClose();
-  };
-
-  const handleClose = () => {
-    reset();
-    onClose();
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{customerId ? "Edit Customer" : "New Customer"}</DialogTitle>
-        </DialogHeader>
-
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          {/* Name */}
-          <div className="space-y-1.5">
-            <Label htmlFor="name">
-              Name <span className="text-destructive">*</span>
-            </Label>
-            <Input id="name" {...register("name")} placeholder="Customer name" />
-            {errors.name && (
-              <p className="text-xs text-destructive">{errors.name.message}</p>
-            )}
-          </div>
-
-          {/* Email */}
-          <div className="space-y-1.5">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              {...register("email")}
-              placeholder="customer@example.com"
-            />
-            {errors.email && (
-              <p className="text-xs text-destructive">{errors.email.message}</p>
-            )}
-          </div>
-
-          {/* Phone */}
-          <div className="space-y-1.5">
-            <Label htmlFor="phone">Phone</Label>
-            <Input
-              id="phone"
-              placeholder="+20 1xx xxx xxxx"
-              value={watch("phone") || ""}
-              onChange={(e) => {
-                const en = e.target.value.replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 1632));
-                setValue("phone", en);
-              }}
-            />
-          </div>
-
-          {/* Governorate */}
-          <div className="space-y-1.5">
-            <Label>Governorate</Label>
-            <Select
-              value={watch("governorate") || ""}
-              onValueChange={(val) => setValue("governorate", val)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select governorate" />
-              </SelectTrigger>
-              <SelectContent>
-                {EGYPT_GOVERNORATES.map((gov) => (
-                  <SelectItem key={gov} value={gov}>
-                    {gov}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Address */}
-          <div className="space-y-1.5">
-            <Label htmlFor="address">Address</Label>
-            <Input id="address" {...register("address")} placeholder="Street, City" />
-          </div>
-
-          {/* Notes */}
-          <div className="space-y-1.5">
-            <Label htmlFor="notes">Notes</Label>
-            <Textarea
-              id="notes"
-              {...register("notes")}
-              placeholder="Optional notes about this customer…"
-              rows={3}
-            />
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={handleClose}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting
-                ? "Saving…"
-                : customerId
-                ? "Save Changes"
-                : "Create Customer"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
+import { CustomerFormDialog } from "@/components/features/customers/customer-form-dialog";
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -446,6 +228,7 @@ export default function CustomersPage() {
             name: editCustomer.name ?? "",
             email: editCustomer.email ?? "",
             phone: editCustomer.phone ?? "",
+            phone2: editCustomer.phone2 ?? "",
             governorate: editCustomer.governorate ?? "",
             address: editCustomer.address ?? "",
             notes: editCustomer.notes ?? "",
