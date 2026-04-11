@@ -10,6 +10,7 @@ const createSchema = z.object({
   name: z.string().min(1),
   email: z.string().email().optional().or(z.literal("")).nullable(),
   phone: z.string().optional().nullable(),
+  governorate: z.string().optional().nullable(),
   address: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
 });
@@ -32,6 +33,7 @@ export async function GET(req: NextRequest) {
         name: customers.name,
         email: customers.email,
         phone: customers.phone,
+        governorate: customers.governorate,
         address: customers.address,
         notes: customers.notes,
         createdAt: customers.createdAt,
