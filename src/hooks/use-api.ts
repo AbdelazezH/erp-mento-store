@@ -586,6 +586,28 @@ export function useDeleteCostProfile() {
   });
 }
 
+// ─── Business Settings ────────────────────────────────────────────────────────
+
+export function useBusinessSettings() {
+  return useQuery({
+    queryKey: ["business-settings"],
+    queryFn: () => apiFetch<{ id: string; shippingCostThreshold: string; updatedAt: string }>("/api/settings"),
+    staleTime: 5 * 60 * 1000, // cache for 5 min — settings change rarely
+  });
+}
+
+export function useUpdateBusinessSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { shippingCostThreshold: string }) => put("/api/settings", data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["business-settings"] });
+      toast.success("Settings saved");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
 // ─── Campaigns ────────────────────────────────────────────────────────────────
 
 export function useCampaigns() {

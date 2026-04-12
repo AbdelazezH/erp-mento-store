@@ -115,6 +115,7 @@ export function Sidebar({ user }: SidebarProps) {
               </p>
             )}
             {[
+              { href: "/settings/business", label: "Business", icon: Settings },
               { href: "/settings/users", label: "Team Members", icon: Users },
               { href: "/settings/cost-profiles", label: "Cost Profiles", icon: DollarSign },
               { href: "/settings/profile", label: "My Profile", icon: KeyRound },

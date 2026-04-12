@@ -14,6 +14,7 @@ import {
   useProduct,
   useCampaigns,
   useCostProfiles,
+  useBusinessSettings,
 } from "@/hooks/use-api";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -233,6 +234,7 @@ export default function OrderForm({
   const { data: campaigns = [] } = useCampaigns();
   const { data: products = [] } = useProducts();
   const { data: costProfilesList = [] } = useCostProfiles();
+  const { data: businessSettings } = useBusinessSettings();
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [productSearch, setProductSearch] = useState("");
@@ -354,12 +356,15 @@ export default function OrderForm({
 
     // Grand total = paid revenue + shipping (net) − order discount
     const grand = sub - freeVal + net - disc;
-    // Shipping fee is a pass-through cost (not profit); only the shipping discount is absorbed by the business
+    // Only the shipping amount ABOVE the configured threshold is a real cost.
+    // Fees at or below the threshold are treated as pass-through (customer pays = business pays).
     const shippingFeeNum = Number(watchedShippingFee) || 0;
-    const profit = grand - cogs - cpTotal - shippingFeeNum;
+    const threshold = parseFloat(businessSettings?.shippingCostThreshold ?? "105");
+    const shippingCostAboveThreshold = Math.max(0, shippingFeeNum - threshold);
+    const profit = grand - cogs - cpTotal - shippingCostAboveThreshold;
 
     return { subtotal: sub, totalCost: cogs, freeItemsValue: freeVal, shippingNet: net, costProfileTotal: cpTotal, orderDiscount: disc, grandTotal: grand, estimatedProfit: profit };
-  }, [watchedItems, watchedShippingFee, watchedShippingDiscount, products, selectedCampaign, watchedCPEntries, watchedDiscountType, watchedDiscountValue]);
+  }, [watchedItems, watchedShippingFee, watchedShippingDiscount, products, selectedCampaign, watchedCPEntries, watchedDiscountType, watchedDiscountValue, businessSettings]);
 
   // Auto-recalculate per_item cost profile amounts when item quantities change
   useEffect(() => {

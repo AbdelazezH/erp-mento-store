@@ -483,6 +483,16 @@ export const costProfilesRelations = relations(costProfiles, ({ many }) => ({
   orderEntries: many(orderCostProfiles),
 }));
 
+// ─── Business Settings (singleton row) ───────────────────────────────────────
+
+export const businessSettings = pgTable("business_settings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  // Shipping fees at or below this threshold are treated as a pass-through
+  // (no impact on Est. Profit). Only the amount ABOVE the threshold is deducted.
+  shippingCostThreshold: numeric("shipping_cost_threshold", { precision: 12, scale: 2 }).notNull().default("105"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type User = typeof users.$inferSelect;
@@ -505,3 +515,4 @@ export type CampaignProduct = typeof campaignProducts.$inferSelect;
 export type ProductImage = typeof productImages.$inferSelect;
 export type OrderCostProfile = typeof orderCostProfiles.$inferSelect;
 export type CostProfile = typeof costProfiles.$inferSelect;
+export type BusinessSettings = typeof businessSettings.$inferSelect;
