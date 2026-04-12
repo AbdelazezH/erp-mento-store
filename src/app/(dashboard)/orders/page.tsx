@@ -114,8 +114,7 @@ export default function OrdersPage() {
       (s, o) => s + parseFloat(o.totalAmount ?? "0"),
       0,
     );
-    const profit = delivered.reduce((s, o) => s + parseFloat(o.profit ?? "0"), 0);
-    return { total: all.length, revenue, profit };
+    return { total: all.length, revenue };
   }, [orders]);
 
   const handleStatusChange = async (id: string, status: OrderStatus) => {
@@ -143,7 +142,7 @@ export default function OrdersPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -162,22 +161,6 @@ export default function OrdersPage() {
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold tabular-nums">{formatCurrency(summary.revenue)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Revenue
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p
-              className={`text-2xl font-bold tabular-nums ${
-                summary.profit >= 0 ? "text-green-600" : "text-red-600"
-              }`}
-            >
-              {formatCurrency(summary.profit)}
-            </p>
           </CardContent>
         </Card>
       </div>
@@ -237,14 +220,12 @@ export default function OrdersPage() {
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Items</TableHead>
                 <TableHead className="text-right">Total</TableHead>
-                <TableHead className="text-right">Revenue</TableHead>
                 <TableHead className="text-right">Shipping</TableHead>
                 <TableHead className="w-12"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {(orders as any[]).map((order) => {
-                const profit = parseFloat(order.profit ?? "0");
                 return (
                   <TableRow key={order.id}>
                     <TableCell className="font-mono text-xs text-muted-foreground">
@@ -266,13 +247,6 @@ export default function OrdersPage() {
                     </TableCell>
                     <TableCell className="text-right font-medium tabular-nums">
                       {formatCurrency(order.totalAmount)}
-                    </TableCell>
-                    <TableCell
-                      className={`text-right font-medium tabular-nums ${
-                        profit >= 0 ? "text-green-600" : "text-red-600"
-                      }`}
-                    >
-                      {formatCurrency(profit)}
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
                       {formatCurrency(order.shippingFee ?? 0)}
