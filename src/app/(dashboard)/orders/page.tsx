@@ -114,7 +114,11 @@ export default function OrdersPage() {
       (s, o) => s + parseFloat(o.totalAmount ?? "0") + parseFloat(o.shippingFee ?? "0"),
       0,
     );
-    return { total: all.length, revenue };
+    const totalProfit = all.reduce(
+      (s, o) => s + parseFloat(o.profit ?? "0"),
+      0,
+    );
+    return { total: all.length, revenue, totalProfit };
   }, [orders]);
 
   const handleStatusChange = async (id: string, status: OrderStatus) => {
@@ -142,7 +146,7 @@ export default function OrdersPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -161,6 +165,18 @@ export default function OrdersPage() {
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold tabular-nums">{formatCurrency(summary.revenue)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total Est. Profit
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className={`text-2xl font-bold tabular-nums ${summary.totalProfit >= 0 ? "text-green-600" : "text-red-600"}`}>
+              {formatCurrency(summary.totalProfit)}
+            </p>
           </CardContent>
         </Card>
       </div>
