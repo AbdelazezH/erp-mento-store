@@ -106,10 +106,7 @@ export async function POST(req: NextRequest) {
   const totalCost = lineItems.reduce((sum, item) => sum + parseFloat(item.unitCost) * item.quantity, 0);
   const costProfileTotal = costProfileEntries.reduce((sum, e) => sum + parseFloat(e.amount), 0);
 
-  const freeItemsValue = lineItems.reduce((sum, item) =>
-    item.isFree ? sum + parseFloat(item.originalUnitPrice ?? "0") * item.quantity : sum, 0);
-  const shippingFeeAmt = parseFloat(orderData.shippingFee ?? "0");
-  const profit = totalAmount - totalCost - costProfileTotal - shippingFeeAmt - freeItemsValue;
+  const profit = totalAmount - totalCost - costProfileTotal;
 
   const [order] = await db
     .insert(orders)
