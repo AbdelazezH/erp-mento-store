@@ -111,7 +111,7 @@ export default function OrdersPage() {
     const all = orders as any[];
     const delivered = all.filter((o) => o.status === "delivered");
     const revenue = delivered.reduce(
-      (s, o) => s + parseFloat(o.totalAmount ?? "0"),
+      (s, o) => s + parseFloat(o.totalAmount ?? "0") + parseFloat(o.shippingFee ?? "0"),
       0,
     );
     return { total: all.length, revenue };
@@ -219,8 +219,7 @@ export default function OrdersPage() {
                 <TableHead>Date</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Items</TableHead>
-                <TableHead className="text-right">Total Sales</TableHead>
-                <TableHead className="text-right">Shipping</TableHead>
+                <TableHead className="text-right">Sales</TableHead>
                 <TableHead className="w-12"></TableHead>
               </TableRow>
             </TableHeader>
@@ -246,10 +245,7 @@ export default function OrdersPage() {
                       {order._count?.items ?? order.items?.length ?? 0}
                     </TableCell>
                     <TableCell className="text-right font-medium tabular-nums">
-                      {formatCurrency(order.totalAmount)}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
-                      {formatCurrency(order.shippingFee ?? 0)}
+                      {formatCurrency(parseFloat(order.totalAmount ?? "0") + parseFloat(order.shippingFee ?? "0"))}
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>

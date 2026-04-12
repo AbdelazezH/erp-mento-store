@@ -126,24 +126,15 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const updateData: Record<string, unknown> = { ...orderData };
   if (orderDate) updateData.orderDate = new Date(orderDate);
 
-  if (lineItems !== undefined || costProfileEntries !== undefined || orderData.shippingFee !== undefined) {
+  if (lineItems !== undefined || costProfileEntries !== undefined) {
     // Use provided values or fetch existing ones for recalculation
     const effectiveLineItems = lineItems ?? (await db.select().from(orderLineItems).where(eq(orderLineItems.orderId, id)));
     const effectiveCostEntries = costProfileEntries ?? (await db.select().from(orderCostProfiles).where(eq(orderCostProfiles.orderId, id)));
 
-    const itemsTotal = effectiveLineItems.reduce((sum, item) => sum + parseFloat(item.total), 0);
+    const totalAmount = effectiveLineItems.reduce((sum, item) => sum + parseFloat(item.total), 0);
     const totalCost = effectiveLineItems.reduce((sum, item) => sum + parseFloat(item.unitCost) * item.quantity, 0);
     const cpTotal = effectiveCostEntries.reduce((sum, e) => sum + parseFloat(e.amount), 0);
 
-    let effectiveShippingFee: number;
-    if (orderData.shippingFee !== undefined) {
-      effectiveShippingFee = parseFloat(orderData.shippingFee);
-    } else {
-      const [existing] = await db.select({ shippingFee: orders.shippingFee }).from(orders).where(eq(orders.id, id));
-      effectiveShippingFee = parseFloat(existing?.shippingFee ?? "0");
-    }
-
-    const totalAmount = itemsTotal + effectiveShippingFee;
     updateData.totalAmount = totalAmount.toFixed(2);
     updateData.totalCost = totalCost.toFixed(2);
     updateData.profit = (totalAmount - totalCost - cpTotal).toFixed(2);

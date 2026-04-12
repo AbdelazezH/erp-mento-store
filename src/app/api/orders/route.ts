@@ -102,8 +102,7 @@ export async function POST(req: NextRequest) {
   const { lineItems, costProfileEntries, ...orderData } = parsed.data;
 
   // Calculate totals
-  const itemsTotal = lineItems.reduce((sum, item) => sum + parseFloat(item.total), 0);
-  const totalAmount = itemsTotal + parseFloat(orderData.shippingFee ?? "0");
+  const totalAmount = lineItems.reduce((sum, item) => sum + parseFloat(item.total), 0);
   const totalCost = lineItems.reduce((sum, item) => sum + parseFloat(item.unitCost) * item.quantity, 0);
   const costProfileTotal = costProfileEntries.reduce((sum, e) => sum + parseFloat(e.amount), 0);
 
