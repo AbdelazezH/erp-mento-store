@@ -354,7 +354,9 @@ export default function OrderForm({
 
     // Grand total = paid revenue + shipping (net) − order discount
     const grand = sub - freeVal + net - disc;
-    const profit = grand - cogs - cpTotal;
+    // Shipping fee is a pass-through cost (not profit); only the shipping discount is absorbed by the business
+    const shippingFeeNum = Number(watchedShippingFee) || 0;
+    const profit = grand - cogs - cpTotal - shippingFeeNum;
 
     return { subtotal: sub, totalCost: cogs, freeItemsValue: freeVal, shippingNet: net, costProfileTotal: cpTotal, orderDiscount: disc, grandTotal: grand, estimatedProfit: profit };
   }, [watchedItems, watchedShippingFee, watchedShippingDiscount, products, selectedCampaign, watchedCPEntries, watchedDiscountType, watchedDiscountValue]);
