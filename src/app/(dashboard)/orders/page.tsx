@@ -219,7 +219,7 @@ export default function OrdersPage() {
                 <TableHead>Date</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Items</TableHead>
-                <TableHead className="text-right">Total</TableHead>
+                <TableHead className="text-right">Total Sales</TableHead>
                 <TableHead className="text-right">Shipping</TableHead>
                 <TableHead className="w-12"></TableHead>
               </TableRow>
