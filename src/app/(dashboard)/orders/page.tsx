@@ -220,6 +220,7 @@ export default function OrdersPage() {
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Items</TableHead>
                 <TableHead className="text-right">Sales</TableHead>
+                <TableHead className="text-right">Est. Profit</TableHead>
                 <TableHead className="w-12"></TableHead>
               </TableRow>
             </TableHeader>
@@ -246,6 +247,9 @@ export default function OrdersPage() {
                     </TableCell>
                     <TableCell className="text-right font-medium tabular-nums">
                       {formatCurrency(parseFloat(order.totalAmount ?? "0") + parseFloat(order.shippingFee ?? "0"))}
+                    </TableCell>
+                    <TableCell className={`text-right font-medium tabular-nums ${parseFloat(order.profit ?? "0") >= 0 ? "text-green-600" : "text-red-600"}`}>
+                      {formatCurrency(parseFloat(order.profit ?? "0"))}
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>

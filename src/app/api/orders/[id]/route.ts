@@ -135,9 +135,24 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const totalCost = effectiveLineItems.reduce((sum, item) => sum + parseFloat(item.unitCost) * item.quantity, 0);
     const cpTotal = effectiveCostEntries.reduce((sum, e) => sum + parseFloat(e.amount), 0);
 
+    // Fetch current order for shipping/discount values if not being updated
+    const shippingFeeNum = parseFloat(String(orderData.shippingFee ?? (await db.select({ v: orders.shippingFee }).from(orders).where(eq(orders.id, id)))[0]?.v)) || 0;
+    const shippingDiscountNum = parseFloat(String(orderData.shippingDiscount ?? (await db.select({ v: orders.shippingDiscount }).from(orders).where(eq(orders.id, id)))[0]?.v)) || 0;
+
+    const effectiveDiscountType = orderData.discountType ?? (await db.select({ v: orders.discountType }).from(orders).where(eq(orders.id, id)))[0]?.v;
+    const effectiveDiscountValue = orderData.discountValue ?? (await db.select({ v: orders.discountValue }).from(orders).where(eq(orders.id, id)))[0]?.v;
+
+    let discount = 0;
+    if (effectiveDiscountType === "percent") {
+      discount = (totalAmount + shippingFeeNum) * ((parseFloat(effectiveDiscountValue ?? "0") || 0) / 100);
+    } else if (effectiveDiscountType === "fixed") {
+      discount = parseFloat(effectiveDiscountValue ?? "0") || 0;
+    }
+    discount = Math.min(discount, totalAmount + shippingFeeNum);
+
     updateData.totalAmount = totalAmount.toFixed(2);
     updateData.totalCost = totalCost.toFixed(2);
-    updateData.profit = (totalAmount - totalCost - cpTotal).toFixed(2);
+    updateData.profit = (totalAmount - shippingFeeNum - shippingDiscountNum - totalCost - cpTotal - discount).toFixed(2);
   }
 
   if (lineItems !== undefined) {
