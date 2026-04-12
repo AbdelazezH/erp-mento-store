@@ -14,7 +14,6 @@ import {
   useProduct,
   useCampaigns,
   useCostProfiles,
-  useBusinessSettings,
 } from "@/hooks/use-api";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -234,7 +233,6 @@ export default function OrderForm({
   const { data: campaigns = [] } = useCampaigns();
   const { data: products = [] } = useProducts();
   const { data: costProfilesList = [] } = useCostProfiles();
-  const { data: businessSettings } = useBusinessSettings();
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [productSearch, setProductSearch] = useState("");
@@ -312,59 +310,66 @@ export default function OrderForm({
   );
 
   // Calc summary
-  const { subtotal, totalCost, freeItemsValue, shippingNet, costProfileTotal, orderDiscount, grandTotal, estimatedProfit } = useMemo(() => {
-    // Subtotal includes ALL items (paid + free) so the deduction is visible
-    const sub = (watchedItems ?? []).reduce((sum, item) => {
+  const {
+    paidSubtotal, shippingFee, shippingDiscount,
+    paidCOGS, freeCOGS, costProfileTotal, orderDiscount,
+    grandTotal, estimatedProfit,
+  } = useMemo(() => {
+    const shippingFeeNum = Number(watchedShippingFee) || 0;
+    const shippingDiscountNum = Number(watchedShippingDiscount) || 0;
+
+    // Paid items revenue (selling price × qty)
+    const paid = (watchedItems ?? []).reduce((sum, item) => {
+      if (item.isFree) return sum;
       return sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
     }, 0);
 
-    // Revenue value being given away for free (shown as a negative deduction line)
-    const freeVal = (watchedItems ?? []).reduce((sum, item) => {
-      if (!item.isFree) return sum;
-      return sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
-    }, 0);
-
-    // COGS includes ALL items (paid + free) — full cost of goods sold
-    const cogs = (watchedItems ?? []).reduce((sum, item) => {
+    // COGS split by paid / free items
+    let paidCogs = 0;
+    let freeCogs = 0;
+    (watchedItems ?? []).forEach((item) => {
       const prod = (products as any[]).find((p: any) => p.id === item.productId);
       let cost = prod ? parseFloat(prod.averageCost ?? prod.basePrice ?? "0") : 0;
-
       if (selectedCampaign && prod) {
         const campaignProd = (selectedCampaign.products ?? []).find(
           (cp: any) => cp.productId === prod.id,
         );
-        if (campaignProd?.cogs) {
-          cost = parseFloat(campaignProd.cogs);
-        }
+        if (campaignProd?.cogs) cost = parseFloat(campaignProd.cogs);
       }
-
-      return sum + cost * (Number(item.quantity) || 0);
-    }, 0);
+      const lineCost = cost * (Number(item.quantity) || 0);
+      if (item.isFree) freeCogs += lineCost;
+      else paidCogs += lineCost;
+    });
 
     const cpTotal = (watchedCPEntries ?? []).reduce((sum, entry) => sum + parseFloat(entry.amount || "0"), 0);
 
-    const net = Math.max(0, (Number(watchedShippingFee) || 0) - (Number(watchedShippingDiscount) || 0));
-
-    // Calculate order discount (based on paid revenue + shipping)
+    // Discount (applied against paid items + shipping fee)
     let disc = 0;
     if (watchedDiscountType === "percent") {
-      disc = (sub - freeVal + net) * ((Number(watchedDiscountValue) || 0) / 100);
+      disc = (paid + shippingFeeNum) * ((Number(watchedDiscountValue) || 0) / 100);
     } else if (watchedDiscountType === "fixed") {
       disc = Number(watchedDiscountValue) || 0;
     }
-    disc = Math.min(disc, sub - freeVal + net);
+    disc = Math.min(disc, paid + shippingFeeNum);
 
-    // Grand total = paid revenue + shipping (net) − order discount
-    const grand = sub - freeVal + net - disc;
-    // Only the shipping amount ABOVE the configured threshold is a real cost.
-    // Fees at or below the threshold are treated as pass-through (customer pays = business pays).
-    const shippingFeeNum = Number(watchedShippingFee) || 0;
-    const threshold = parseFloat(businessSettings?.shippingCostThreshold ?? "105");
-    const shippingCostAboveThreshold = Math.max(0, shippingFeeNum - threshold);
-    const profit = grand - cogs - cpTotal - shippingCostAboveThreshold;
+    // Grand Total = paid items + shipping fee − discount
+    const grand = paid + shippingFeeNum - disc;
 
-    return { subtotal: sub, totalCost: cogs, freeItemsValue: freeVal, shippingNet: net, costProfileTotal: cpTotal, orderDiscount: disc, grandTotal: grand, estimatedProfit: profit };
-  }, [watchedItems, watchedShippingFee, watchedShippingDiscount, products, selectedCampaign, watchedCPEntries, watchedDiscountType, watchedDiscountValue, businessSettings]);
+    // Est. Profit = paid items − shipping fee − shipping discount − COGS − free items COGS − cost profiles − discount
+    const profit = paid - shippingFeeNum - shippingDiscountNum - paidCogs - freeCogs - cpTotal - disc;
+
+    return {
+      paidSubtotal: paid,
+      shippingFee: shippingFeeNum,
+      shippingDiscount: shippingDiscountNum,
+      paidCOGS: paidCogs,
+      freeCOGS: freeCogs,
+      costProfileTotal: cpTotal,
+      orderDiscount: disc,
+      grandTotal: grand,
+      estimatedProfit: profit,
+    };
+  }, [watchedItems, watchedShippingFee, watchedShippingDiscount, products, selectedCampaign, watchedCPEntries, watchedDiscountType, watchedDiscountValue]);
 
   // Auto-recalculate per_item cost profile amounts when item quantities change
   useEffect(() => {
@@ -1075,52 +1080,22 @@ export default function OrderForm({
                 </CardContent>
               </Card>
 
-              {/* Financial Summary */}
+              {/* Grand Total */}
               <Card>
                 <CardHeader className="pb-4">
-                  <CardTitle className="text-base">Financial Summary</CardTitle>
+                  <CardTitle className="text-base">Grand Total</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Subtotal</span>
-                    <span className="tabular-nums font-medium">{formatCurrency(subtotal)}</span>
+                    <span className="tabular-nums font-medium">{formatCurrency(paidSubtotal)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Shipping</span>
-                    <span className="tabular-nums font-medium">{formatCurrency(Number(watchedShippingFee) || 0)}</span>
+                    <span className="text-muted-foreground">Shipping Fee</span>
+                    <span className="tabular-nums font-medium">+{formatCurrency(shippingFee)}</span>
                   </div>
-                  {(Number(watchedShippingDiscount) || 0) > 0 && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Shipping Discount</span>
-                      <span className="tabular-nums font-medium text-red-600">
-                        -{formatCurrency(Number(watchedShippingDiscount) || 0)}
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">COGS</span>
-                    <span className="tabular-nums font-medium text-red-600">
-                      -{formatCurrency(totalCost)}
-                    </span>
-                  </div>
-                  {freeItemsValue > 0 && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Free Items</span>
-                      <span className="tabular-nums font-medium text-red-600">
-                        -{formatCurrency(freeItemsValue)}
-                      </span>
-                    </div>
-                  )}
-                  {costProfileTotal > 0 && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Cost Profiles</span>
-                      <span className="tabular-nums font-medium text-red-600">
-                        -{formatCurrency(costProfileTotal)}
-                      </span>
-                    </div>
-                  )}
 
-                  {/* Discount Section */}
+                  {/* Discount */}
                   <div className="space-y-2">
                     <div className="flex items-center gap-1.5">
                       <Label className="text-sm">Discount</Label>
@@ -1164,7 +1139,7 @@ export default function OrderForm({
                     )}
                     {orderDiscount > 0 && (
                       <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Order Discount</span>
+                        <span className="text-muted-foreground">Discount</span>
                         <span className="tabular-nums font-medium text-red-600">
                           -{formatCurrency(orderDiscount)}
                         </span>
@@ -1174,9 +1149,68 @@ export default function OrderForm({
 
                   <Separator />
                   <div className="flex justify-between font-bold">
-                    <span>Grand Total</span>
+                    <span>Total</span>
                     <span className="tabular-nums">{formatCurrency(grandTotal)}</span>
                   </div>
+                </CardContent>
+              </Card>
+
+              {/* Est. Profit */}
+              <Card>
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-base">Est. Profit</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Subtotal</span>
+                    <span className="tabular-nums font-medium">{formatCurrency(paidSubtotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Shipping Fee</span>
+                    <span className="tabular-nums font-medium text-red-600">
+                      -{formatCurrency(shippingFee)}
+                    </span>
+                  </div>
+                  {shippingDiscount > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Shipping Discount</span>
+                      <span className="tabular-nums font-medium text-red-600">
+                        -{formatCurrency(shippingDiscount)}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">COGS</span>
+                    <span className="tabular-nums font-medium text-red-600">
+                      -{formatCurrency(paidCOGS)}
+                    </span>
+                  </div>
+                  {freeCOGS > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Free Items COGS</span>
+                      <span className="tabular-nums font-medium text-red-600">
+                        -{formatCurrency(freeCOGS)}
+                      </span>
+                    </div>
+                  )}
+                  {costProfileTotal > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Cost Profiles</span>
+                      <span className="tabular-nums font-medium text-red-600">
+                        -{formatCurrency(costProfileTotal)}
+                      </span>
+                    </div>
+                  )}
+                  {orderDiscount > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Discounts</span>
+                      <span className="tabular-nums font-medium text-red-600">
+                        -{formatCurrency(orderDiscount)}
+                      </span>
+                    </div>
+                  )}
+
+                  <Separator />
                   <div
                     className={`flex justify-between font-bold ${
                       estimatedProfit >= 0 ? "text-green-600" : "text-red-600"
