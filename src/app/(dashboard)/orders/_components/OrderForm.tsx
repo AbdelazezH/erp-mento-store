@@ -830,7 +830,28 @@ export default function OrderForm({
                             <TableCell className="text-center">
                               <input
                                 type="checkbox"
-                                {...register(`items.${idx}.isFree`)}
+                                checked={!!item?.isFree}
+                                onChange={(e) => {
+                                  const checked = e.target.checked;
+                                  setValue(`items.${idx}.isFree`, checked, { shouldValidate: true });
+                                  const prod = (products as any[]).find((p: any) => p.id === item?.productId);
+                                  if (prod) {
+                                    if (checked) {
+                                      // Unit Price shows the base cost so the financial summary deduction is accurate
+                                      let baseCost = parseFloat(prod.averageCost ?? prod.basePrice ?? "0");
+                                      if (selectedCampaign) {
+                                        const cp = (selectedCampaign.products ?? []).find(
+                                          (c: any) => c.productId === prod.id,
+                                        );
+                                        if (cp?.cogs) baseCost = parseFloat(cp.cogs);
+                                      }
+                                      setValue(`items.${idx}.unitPrice`, baseCost, { shouldValidate: true });
+                                    } else {
+                                      // Restore selling price when un-marking as free
+                                      setValue(`items.${idx}.unitPrice`, parseFloat(prod.sellingPrice ?? "0"), { shouldValidate: true });
+                                    }
+                                  }
+                                }}
                                 className="h-4 w-4 rounded border-input"
                               />
                             </TableCell>
