@@ -867,7 +867,9 @@ export default function OrderForm({
                             </TableCell>
                             <TableCell className="text-right font-medium tabular-nums text-sm">
                               {isFree ? (
-                                <span className="text-muted-foreground italic text-xs">Free</span>
+                                <span className="text-muted-foreground italic text-xs">
+                                  {formatCurrency(lineTotal)} (Free)
+                                </span>
                               ) : (
                                 formatCurrency(lineTotal)
                               )}
