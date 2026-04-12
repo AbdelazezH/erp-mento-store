@@ -114,7 +114,7 @@ export default function OrdersPage() {
       (s, o) => s + parseFloat(o.totalAmount ?? "0"),
       0,
     );
-    const profit = all.reduce((s, o) => s + parseFloat(o.profit ?? "0"), 0);
+    const profit = delivered.reduce((s, o) => s + parseFloat(o.profit ?? "0"), 0);
     return { total: all.length, revenue, profit };
   }, [orders]);
 
@@ -157,7 +157,7 @@ export default function OrdersPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Delivered Revenue
+              Sales
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -167,7 +167,7 @@ export default function OrdersPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Profit
+              Revenue
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -237,7 +237,7 @@ export default function OrdersPage() {
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Items</TableHead>
                 <TableHead className="text-right">Total</TableHead>
-                <TableHead className="text-right">Profit</TableHead>
+                <TableHead className="text-right">Revenue</TableHead>
                 <TableHead className="text-right">Shipping</TableHead>
                 <TableHead className="w-12"></TableHead>
               </TableRow>

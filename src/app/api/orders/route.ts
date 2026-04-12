@@ -106,17 +106,8 @@ export async function POST(req: NextRequest) {
   const totalCost = lineItems.reduce((sum, item) => sum + parseFloat(item.unitCost) * item.quantity, 0);
   const costProfileTotal = costProfileEntries.reduce((sum, e) => sum + parseFloat(e.amount), 0);
 
-  // Calculate order discount
-  const shippingNet = Math.max(0, parseFloat(orderData.shippingFee ?? "0") - parseFloat(orderData.shippingDiscount ?? "0"));
-  let orderDiscount = 0;
-  if (orderData.discountType === "percent") {
-    orderDiscount = (totalAmount + shippingNet) * (parseFloat(orderData.discountValue ?? "0") / 100);
-  } else if (orderData.discountType === "fixed") {
-    orderDiscount = parseFloat(orderData.discountValue ?? "0");
-  }
-  orderDiscount = Math.min(orderDiscount, totalAmount + shippingNet); // Cap at total
-
-  const profit = totalAmount + shippingNet - orderDiscount - totalCost - costProfileTotal;
+  const shippingDiscountAmt = parseFloat(orderData.shippingDiscount ?? "0");
+  const profit = totalAmount - totalCost - costProfileTotal - shippingDiscountAmt;
 
   const [order] = await db
     .insert(orders)
