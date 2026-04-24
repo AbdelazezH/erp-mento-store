@@ -44,6 +44,7 @@ import {
   Trash2,
   ShoppingCart,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -64,20 +65,22 @@ function statusLabel(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-const STATUS_TABS: { value: string; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "draft", label: "Draft" },
-  { value: "pending", label: "Pending" },
-  { value: "delivered", label: "Delivered" },
-  { value: "cancelled", label: "Cancelled" },
-];
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function OrdersPage() {
   const router = useRouter();
+  const t = useTranslations("orders");
+  const tc = useTranslations("common");
   const [activeTab, setActiveTab] = useState("all");
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  const STATUS_TABS: { value: string; label: string }[] = [
+    { value: "all", label: t("all") },
+    { value: "draft", label: t("draft") },
+    { value: "pending", label: t("pending") },
+    { value: "delivered", label: t("delivered") },
+    { value: "cancelled", label: t("cancelled") },
+  ];
 
   const {
     data: ordersData,
@@ -136,12 +139,12 @@ export default function OrdersPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Sales Orders</h1>
-          <p className="text-sm text-muted-foreground">Manage customer orders</p>
+          <h1 className="text-2xl font-bold tracking-tight">{t("title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
         </div>
         <Button onClick={() => router.push("/orders/new")}>
           <Plus className="mr-2 h-4 w-4" />
-          New Order
+          {t("newOrder")}
         </Button>
       </div>
 
@@ -150,7 +153,7 @@ export default function OrdersPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Orders
+              {t("totalOrders")}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -160,7 +163,7 @@ export default function OrdersPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Sales
+              {t("sales")}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -170,7 +173,7 @@ export default function OrdersPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Est. Profit
+              {t("totalEstProfit")}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -211,16 +214,16 @@ export default function OrdersPage() {
       ) : (orders as any[]).length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-20 text-center">
           <ShoppingCart className="mb-4 h-12 w-12 text-muted-foreground/40" />
-          <h3 className="text-lg font-semibold">No orders found</h3>
+          <h3 className="text-lg font-semibold">{t("noOrdersFound")}</h3>
           <p className="mt-1 text-sm text-muted-foreground">
             {activeTab !== "all"
-              ? `No ${activeTab} orders.`
-              : "Get started by creating your first order."}
+              ? t("noStatusOrders", { status: activeTab })
+              : t("getStartedFirst")}
           </p>
           {activeTab === "all" && (
             <Button className="mt-4" onClick={() => router.push("/orders/new")}>
               <Plus className="mr-2 h-4 w-4" />
-              New Order
+              {t("newOrder")}
             </Button>
           )}
         </div>
@@ -230,13 +233,13 @@ export default function OrdersPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Order #</TableHead>
-                <TableHead>Customer</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Items</TableHead>
-                <TableHead className="text-right">Sales</TableHead>
-                <TableHead className="text-right">Est. Profit</TableHead>
+                <TableHead>{t("orderNumber")}</TableHead>
+                <TableHead>{t("customer")}</TableHead>
+                <TableHead>{t("date")}</TableHead>
+                <TableHead>{tc("status")}</TableHead>
+                <TableHead className="text-right">{t("items")}</TableHead>
+                <TableHead className="text-right">{t("sales")}</TableHead>
+                <TableHead className="text-right">{t("estProfit")}</TableHead>
                 <TableHead className="w-12"></TableHead>
               </TableRow>
             </TableHeader>
@@ -278,7 +281,7 @@ export default function OrdersPage() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => router.push(`/orders/${order.id}`)}>
                             <Pencil className="mr-2 h-4 w-4" />
-                            Edit
+                            {tc("edit")}
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           {(["draft", "pending", "delivered", "cancelled"] as OrderStatus[])
@@ -288,7 +291,7 @@ export default function OrdersPage() {
                                 key={s}
                                 onClick={() => handleStatusChange(order.id, s)}
                               >
-                                Mark as {statusLabel(s)}
+                                {t("markAs", { status: statusLabel(s) })}
                               </DropdownMenuItem>
                             ))}
                           <DropdownMenuSeparator />
@@ -297,7 +300,7 @@ export default function OrdersPage() {
                             onClick={() => setDeleteId(order.id)}
                           >
                             <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
+                            {tc("delete")}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -330,18 +333,18 @@ export default function OrdersPage() {
       <AlertDialog open={!!deleteId} onOpenChange={(v) => !v && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Order</AlertDialogTitle>
+            <AlertDialogTitle>{t("deleteOrderTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the order. This action cannot be undone.
+              {t("deleteOrderDesc")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{tc("cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={handleDelete}
             >
-              Delete
+              {tc("delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

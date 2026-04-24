@@ -42,11 +42,14 @@ import {
   Users,
   Star,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { CustomerFormDialog } from "@/components/features/customers/customer-form-dialog";
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CustomersPage() {
+  const t = useTranslations("customers");
+  const tc = useTranslations("common");
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [editCustomer, setEditCustomer] = useState<any | null>(null);
@@ -86,12 +89,12 @@ export default function CustomersPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Customers</h1>
-          <p className="text-sm text-muted-foreground">Manage your customer base</p>
+          <h1 className="text-2xl font-bold tracking-tight">{t("title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
         </div>
         <Button onClick={() => setCreateOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
-          New Customer
+          {t("newCustomer")}
         </Button>
       </div>
 
@@ -99,7 +102,7 @@ export default function CustomersPage() {
       <div className="relative max-w-sm">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-          placeholder="Search customers…"
+          placeholder={t("searchPlaceholder")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-9"
@@ -125,16 +128,16 @@ export default function CustomersPage() {
       ) : (customers as any[]).length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-20 text-center">
           <Users className="mb-4 h-12 w-12 text-muted-foreground/40" />
-          <h3 className="text-lg font-semibold">No customers found</h3>
+          <h3 className="text-lg font-semibold">{t("noCustomersFound")}</h3>
           <p className="mt-1 text-sm text-muted-foreground">
             {search
-              ? "Try a different search term."
-              : "Get started by adding your first customer."}
+              ? t("tryDifferentSearch")
+              : t("noCustomersGetStarted")}
           </p>
           {!search && (
             <Button className="mt-4" onClick={() => setCreateOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
-              New Customer
+              {t("newCustomer")}
             </Button>
           )}
         </div>
@@ -145,12 +148,12 @@ export default function CustomersPage() {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-10"></TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead className="text-right">Orders</TableHead>
-                <TableHead className="text-right">Total Spend</TableHead>
-                <TableHead>Since</TableHead>
+                <TableHead>{tc("name")}</TableHead>
+                <TableHead>{tc("email")}</TableHead>
+                <TableHead>{tc("phone")}</TableHead>
+                <TableHead className="text-right">{t("orders")}</TableHead>
+                <TableHead className="text-right">{t("totalSpend")}</TableHead>
+                <TableHead>{t("since")}</TableHead>
                 <TableHead className="w-12"></TableHead>
               </TableRow>
             </TableHeader>
@@ -167,7 +170,7 @@ export default function CustomersPage() {
                         })
                       }
                       className="transition-colors hover:scale-110"
-                      title={customer.hasFeedback ? "Remove feedback" : "Mark as feedback given"}
+                      title={customer.hasFeedback ? t("removeFeedback") : t("markFeedback")}
                     >
                       <Star
                         className={`h-4 w-4 ${
@@ -205,14 +208,14 @@ export default function CustomersPage() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => setEditCustomer(customer)}>
                           <Pencil className="mr-2 h-4 w-4" />
-                          Edit
+                          {tc("edit")}
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           className="text-destructive focus:text-destructive"
                           onClick={() => setDeleteId(customer.id)}
                         >
                           <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
+                          {tc("delete")}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -265,19 +268,18 @@ export default function CustomersPage() {
       <AlertDialog open={!!deleteId} onOpenChange={(v) => !v && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Customer</AlertDialogTitle>
+            <AlertDialogTitle>{t("deleteCustomerTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the customer and may affect related orders. This
-              action cannot be undone.
+              {t("deleteCustomerDesc")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{tc("cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={handleDelete}
             >
-              Delete
+              {tc("delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

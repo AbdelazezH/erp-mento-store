@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function ProfilePage() {
+  const t = useTranslations("settings");
   const [current, setCurrent] = useState("");
   const [newPass, setNewPass] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -40,22 +42,22 @@ export default function ProfilePage() {
   return (
     <div className="max-w-lg space-y-6">
       <div>
-        <h2 className="text-2xl font-bold">Profile Settings</h2>
-        <p className="text-muted-foreground text-sm mt-1">Manage your account security.</p>
+        <h2 className="text-2xl font-bold">{t("profileTitle")}</h2>
+        <p className="text-muted-foreground text-sm mt-1">{t("profileSubtitle")}</p>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <KeyRound className="h-4 w-4" />
-            Change Password
+            {t("changePassword")}
           </CardTitle>
-          <CardDescription>Use a strong password with at least 8 characters.</CardDescription>
+          <CardDescription>{t("changePasswordDesc")}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="current-password">Current Password</Label>
+              <Label htmlFor="current-password">{t("currentPassword")}</Label>
               <Input
                 id="current-password"
                 type="password"
@@ -65,7 +67,7 @@ export default function ProfilePage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="new-password">New Password</Label>
+              <Label htmlFor="new-password">{t("newPassword")}</Label>
               <Input
                 id="new-password"
                 type="password"
@@ -76,7 +78,7 @@ export default function ProfilePage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="confirm-password">Confirm New Password</Label>
+              <Label htmlFor="confirm-password">{t("confirmNewPassword")}</Label>
               <Input
                 id="confirm-password"
                 type="password"
@@ -86,7 +88,7 @@ export default function ProfilePage() {
               />
             </div>
             <Button type="submit" disabled={loading}>
-              {loading ? "Updating..." : "Update Password"}
+              {loading ? t("updating") : t("updatePassword")}
             </Button>
           </form>
         </CardContent>

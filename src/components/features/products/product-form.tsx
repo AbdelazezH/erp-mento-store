@@ -49,6 +49,7 @@ import { ImageUpload } from "./image-upload";
 import { Plus, X, ChevronDown, Images, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 // ─── Schema ──────────────────────────────────────────────────────────────────
 
@@ -166,18 +167,19 @@ function generateVariants(rows: AttributeRow[]): Omit<VariantDraft, "_key" | "id
 // ─── Quick-create dialogs ─────────────────────────────────────────────────────
 
 function NewCategoryDialog({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (id: string) => void }) {
+  const t = useTranslations("productForm");
   const [name, setName] = useState("");
   const create = useCreateCategory();
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-sm">
-        <DialogHeader><DialogTitle>New Category</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{t("newCategoryTitle")}</DialogTitle></DialogHeader>
         <div className="space-y-3 py-2">
-          <Label>Name</Label>
+          <Label>{t("name")}</Label>
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Category name" autoFocus />
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button variant="outline" onClick={onClose}>{t("cancel")}</Button>
           <Button
             disabled={!name.trim() || create.isPending}
             onClick={async () => {
@@ -187,7 +189,7 @@ function NewCategoryDialog({ open, onClose, onCreated }: { open: boolean; onClos
               onClose();
             }}
           >
-            Create
+            {t("create")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -213,14 +215,15 @@ function EditCategoryDialog({
     setDescription(category?.description ?? "");
   }, [category]);
 
+  const t = useTranslations("productForm");
   if (!category) return null;
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-sm">
-        <DialogHeader><DialogTitle>Edit Category</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{t("editCategoryTitle")}</DialogTitle></DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
-            <Label>Name</Label>
+            <Label>{t("name")}</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Category name" autoFocus />
           </div>
           <div className="space-y-1.5">
@@ -229,7 +232,7 @@ function EditCategoryDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button variant="outline" onClick={onClose}>{t("cancel")}</Button>
           <Button
             disabled={!name.trim() || update.isPending}
             onClick={async () => {
@@ -237,7 +240,7 @@ function EditCategoryDialog({
               onClose();
             }}
           >
-            Save
+            {t("save")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -246,18 +249,19 @@ function EditCategoryDialog({
 }
 
 function NewSupplierDialog({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (id: string) => void }) {
+  const t = useTranslations("productForm");
   const [name, setName] = useState("");
   const create = useCreateSupplier();
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-sm">
-        <DialogHeader><DialogTitle>New Supplier</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{t("newSupplierTitle")}</DialogTitle></DialogHeader>
         <div className="space-y-3 py-2">
-          <Label>Name</Label>
+          <Label>{t("name")}</Label>
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Supplier name" autoFocus />
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button variant="outline" onClick={onClose}>{t("cancel")}</Button>
           <Button
             disabled={!name.trim() || create.isPending}
             onClick={async () => {
@@ -267,7 +271,7 @@ function NewSupplierDialog({ open, onClose, onCreated }: { open: boolean; onClos
               onClose();
             }}
           >
-            Create
+            {t("create")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -987,6 +991,8 @@ export interface ProductFormProps {
 }
 
 export function ProductForm({ mode, productId, initialData, onSuccess }: ProductFormProps) {
+  const t = useTranslations("productForm");
+  const tc = useTranslations("common");
   const router = useRouter();
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
@@ -1351,7 +1357,7 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                 value="variants"
                 className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 pb-3 flex items-center gap-1.5"
               >
-                Variants
+                {t("variants")}
                 {hasVariants ? (
                   <span className="text-xs bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 leading-none">On</span>
                 ) : (
@@ -1362,7 +1368,7 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                 value="gallery"
                 className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 pb-3 flex items-center gap-1.5"
               >
-                Gallery
+                {t("gallery")}
                 {galleryImages.length > 0 && (
                   <span className="text-xs bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 leading-none">{galleryImages.length}</span>
                 )}
@@ -1371,7 +1377,7 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                 value="costHistory"
                 className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 pb-3"
               >
-                Cost History
+                {t("costHistory")}
               </TabsTrigger>
             </TabsList>
           </div>
@@ -1388,15 +1394,15 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                   {/* Name */}
                   <div className="space-y-1.5">
                     <Label htmlFor="name">
-                      Name <span className="text-destructive">*</span>
+                      {t("name")} <span className="text-destructive">*</span>
                     </Label>
-                    <Input id="name" {...register("name")} placeholder="Product name" />
+                    <Input id="name" {...register("name")} placeholder={t("namePlaceholder")} />
                     {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
                   </div>
 
                   {/* Description (rich text) */}
                   <div className="space-y-1.5">
-                    <Label>Product Description</Label>
+                    <Label>{t("description")}</Label>
                     <RichTextEditor
                       value={description}
                       onChange={(html) => setValue("description", html)}
@@ -1407,20 +1413,20 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                   {/* Meta Description */}
                   <div className="space-y-1.5">
                     <Label htmlFor="metaDescription">
-                      Meta Description{" "}
+                      {t("metaDescription")}{" "}
                       <span className="text-xs font-normal text-muted-foreground">(SEO / short summary)</span>
                     </Label>
                     <Textarea
                       id="metaDescription"
                       {...register("metaDescription")}
-                      placeholder="Brief summary for search engines and previews, max ~160 characters…"
+                      placeholder={t("metaDescPlaceholder")}
                       rows={2}
                     />
                   </div>
 
                   {/* Status */}
                   <div className="space-y-1.5">
-                    <Label>Status</Label>
+                    <Label>{tc("status")}</Label>
                     <Select
                       value={isPublished ? "published" : "draft"}
                       onValueChange={(v) => setValue("isPublished", v === "published")}
@@ -1429,8 +1435,8 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="published">Published</SelectItem>
-                        <SelectItem value="draft">Not Published</SelectItem>
+                        <SelectItem value="published">{tc("published")}</SelectItem>
+                        <SelectItem value="draft">{tc("draft")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1439,7 +1445,7 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <Label>Category</Label>
+                        <Label>{t("category")}</Label>
                         <button
                           type="button"
                           onClick={() => setShowNewCategory(true)}
@@ -1466,13 +1472,13 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
 
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <Label>Supplier</Label>
+                        <Label>{t("supplier")}</Label>
                         <button
                           type="button"
                           onClick={() => setShowNewSupplier(true)}
                           className="text-xs text-primary hover:underline"
                         >
-                          + New Supplier
+                          + New
                         </button>
                       </div>
                       <Select
@@ -1495,7 +1501,7 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                   {/* SKU — always visible */}
                   <div className="space-y-1.5">
                     <Label htmlFor="sku">
-                      Product Code{" "}
+                      {t("sku")}{" "}
                       <span className="text-xs font-normal text-muted-foreground">(Supplier Code / SKU)</span>
                     </Label>
                     <Input id="sku" {...register("sku")} placeholder="PRD-A4X2TK" />
@@ -1503,7 +1509,7 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
 
                   {/* Barcode — auto-generated, editable, hidden when variants are on */}
                   <div className={cn("space-y-1.5", hasVariants && "hidden")}>
-                    <Label htmlFor="barcode">Barcode</Label>
+                    <Label htmlFor="barcode">{t("barcode")}</Label>
                     <Input
                       id="barcode"
                       {...register("barcode")}
@@ -1520,7 +1526,7 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                   <div className="grid grid-cols-2 gap-4">
                     {/* Base Cost */}
                     <div className="space-y-1.5">
-                      <Label htmlFor="basePrice">Base Cost (L.E)</Label>
+                      <Label htmlFor="basePrice">{t("basePrice")}</Label>
                       <Input
                         id="basePrice"
                         type="number"
@@ -1533,7 +1539,7 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
 
                     {/* Selling Price */}
                     <div className="space-y-1.5">
-                      <Label htmlFor="sellingPrice">Selling Price (L.E)</Label>
+                      <Label htmlFor="sellingPrice">{t("sellingPrice")}</Label>
                       <Input
                         id="sellingPrice"
                         type="number"
@@ -1603,7 +1609,7 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                   {/* Stock */}
                   {!hasVariants && (
                     <div className="space-y-1.5">
-                      <Label htmlFor="stockQuantity">Stock Quantity</Label>
+                      <Label htmlFor="stockQuantity">{t("stockQuantity")}</Label>
                       <Input
                         id="stockQuantity"
                         type="number"
@@ -1621,14 +1627,14 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
 
                   {/* Dimensions */}
                   <div className="space-y-1.5">
-                    <Label>Dimensions <span className="text-xs font-normal text-muted-foreground">(cm)</span></Label>
+                    <Label>{t("dimensions")}</Label>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="relative">
                         <Input
                           type="number"
                           step="0.1"
                           min="0"
-                          placeholder="Width"
+                          placeholder={t("width")}
                           {...register("width")}
                           className="pr-10"
                         />
@@ -1639,7 +1645,7 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                           type="number"
                           step="0.1"
                           min="0"
-                          placeholder="Height"
+                          placeholder={t("height")}
                           {...register("height")}
                           className="pr-10"
                         />
@@ -1650,7 +1656,7 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
 
                   {/* Material */}
                   <div className="space-y-1.5 relative">
-                    <Label>Material</Label>
+                    <Label>{t("material")}</Label>
                     <Input
                       value={materialInput}
                       onChange={(e) => {
@@ -1757,7 +1763,7 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                 <div ref={addAttrRef}>
                   {isCreatingNewAttr ? (
                     <div className="border rounded-xl p-4 space-y-3">
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">New Attribute</p>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">{t("newAttributeTitle")}</p>
                       <Input
                         value={newAttrName}
                         onChange={(e) => setNewAttrName(e.target.value)}
@@ -1780,14 +1786,14 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                             setNewAttrName("");
                           }}
                         >
-                          Create
+                          {t("create")}
                         </Button>
                         <button
                           type="button"
                           className="text-sm text-muted-foreground hover:text-foreground"
                           onClick={() => { setIsCreatingNewAttr(false); setNewAttrName(""); }}
                         >
-                          Cancel
+                          {t("cancel")}
                         </button>
                       </div>
                     </div>
@@ -1799,7 +1805,7 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                         className="w-full border-2 border-dashed rounded-lg px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors flex items-center justify-center gap-2"
                       >
                         <Plus className="h-4 w-4" />
-                        Add an attribute
+                        {t("addAttribute")}
                         <ChevronDown className="h-3 w-3 ml-auto" />
                       </button>
                       {showAddAttrDropdown && (
@@ -1833,7 +1839,7 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
                               }}
                             >
                               <Plus className="h-3.5 w-3.5" />
-                              New Attribute
+                              {t("newAttributeTitle")}
                             </button>
                           </div>
                         </div>
@@ -1965,10 +1971,10 @@ export function ProductForm({ mode, productId, initialData, onSuccess }: Product
         createPortal(
           <div className="border-t bg-background px-6 py-3 flex items-center justify-end gap-3">
             <Button type="button" variant="outline" onClick={() => router.push("/products")}>
-              Cancel
+              {t("cancel")}
             </Button>
             <Button type="submit" form="product-form" disabled={isSaving}>
-              {isSaving ? "Saving…" : mode === "create" ? "Save Product" : "Save Changes"}
+              {isSaving ? t("saving") : mode === "create" ? t("saveProduct") : tc("saveChanges")}
             </Button>
           </div>,
           document.getElementById("page-bottom-bar")!

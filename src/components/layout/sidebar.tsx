@@ -23,17 +23,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState } from "react";
 import { toast } from "sonner";
-
-const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/products", label: "Products", icon: Package },
-  { href: "/suppliers", label: "Suppliers", icon: Truck },
-  { href: "/bills", label: "Invoices", icon: FileText },
-  { href: "/customers", label: "Customers", icon: Users },
-  { href: "/orders", label: "Orders", icon: ShoppingCart },
-  { href: "/campaigns", label: "Campaigns", icon: Megaphone },
-  { href: "/attributes", label: "Taxonomy", icon: Tag },
-];
+import { useTranslations } from "next-intl";
 
 interface SidebarProps {
   user: { firstName: string; lastName: string; email: string; role: string } | null;
@@ -43,6 +33,25 @@ export function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
+  const t = useTranslations("nav");
+
+  const navItems = [
+    { href: "/", label: t("dashboard"), icon: LayoutDashboard },
+    { href: "/products", label: t("products"), icon: Package },
+    { href: "/suppliers", label: t("suppliers"), icon: Truck },
+    { href: "/bills", label: t("bills"), icon: FileText },
+    { href: "/customers", label: t("customers"), icon: Users },
+    { href: "/orders", label: t("orders"), icon: ShoppingCart },
+    { href: "/campaigns", label: t("campaigns"), icon: Megaphone },
+    { href: "/attributes", label: t("attributes"), icon: Tag },
+  ];
+
+  const settingsItems = [
+    { href: "/settings/business", label: t("business"), icon: Settings },
+    { href: "/settings/users", label: t("teamMembers"), icon: Users },
+    { href: "/settings/cost-profiles", label: t("costProfiles"), icon: DollarSign },
+    { href: "/settings/profile", label: t("myProfile"), icon: KeyRound },
+  ];
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -78,7 +87,17 @@ export function Sidebar({ user }: SidebarProps) {
           className={cn("h-8 w-8 shrink-0", collapsed && "mx-auto")}
           onClick={() => setCollapsed(!collapsed)}
         >
-          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          {collapsed ? (
+            <>
+              <ChevronRight className="h-4 w-4 ltr:block rtl:hidden" />
+              <ChevronLeft className="h-4 w-4 ltr:hidden rtl:block" />
+            </>
+          ) : (
+            <>
+              <ChevronLeft className="h-4 w-4 ltr:block rtl:hidden" />
+              <ChevronRight className="h-4 w-4 ltr:hidden rtl:block" />
+            </>
+          )}
         </Button>
       </div>
 
@@ -111,15 +130,10 @@ export function Sidebar({ user }: SidebarProps) {
           <div className={cn("mt-4 px-2", !collapsed && "border-t border-sidebar-border pt-4")}>
             {!collapsed && (
               <p className="px-3 mb-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Settings
+                {t("settings")}
               </p>
             )}
-            {[
-              { href: "/settings/business", label: "Business", icon: Settings },
-              { href: "/settings/users", label: "Team Members", icon: Users },
-              { href: "/settings/cost-profiles", label: "Cost Profiles", icon: DollarSign },
-              { href: "/settings/profile", label: "My Profile", icon: KeyRound },
-            ].map(({ href, label, icon: Icon }) => {
+            {settingsItems.map(({ href, label, icon: Icon }) => {
               const isActive = pathname.startsWith(href);
               return (
                 <Link
@@ -152,10 +166,10 @@ export function Sidebar({ user }: SidebarProps) {
                   ? "bg-sidebar-accent text-sidebar-accent-foreground"
                   : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
               )}
-              title={collapsed ? "My Profile" : undefined}
+              title={collapsed ? t("myProfile") : undefined}
             >
               <KeyRound className="h-4 w-4 shrink-0" />
-              {!collapsed && <span>My Profile</span>}
+              {!collapsed && <span>{t("myProfile")}</span>}
             </Link>
           </div>
         )}
@@ -176,10 +190,10 @@ export function Sidebar({ user }: SidebarProps) {
           size={collapsed ? "icon" : "sm"}
           className={cn("text-muted-foreground hover:text-foreground", !collapsed && "w-full justify-start")}
           onClick={handleLogout}
-          title={collapsed ? "Logout" : undefined}
+          title={collapsed ? t("logout") : undefined}
         >
           <LogOut className="h-4 w-4" />
-          {!collapsed && <span className="ml-2">Logout</span>}
+          {!collapsed && <span className="ms-2">{t("logout")}</span>}
         </Button>
       </div>
     </aside>

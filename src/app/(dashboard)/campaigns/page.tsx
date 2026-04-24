@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useTranslations } from "next-intl";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -102,11 +103,12 @@ function verdictVariant(v: Verdict) {
   }
 }
 
-function verdictLabel(v: Verdict) {
-  switch (v) {
-    case "profitable": return "Profitable";
-    case "loss": return "Loss";
-    case "break_even": return "Break Even";
+function VerdictLabelText({ verdict }: { verdict: Verdict }) {
+  const t = useTranslations("campaigns");
+  switch (verdict) {
+    case "profitable": return <>{t("profitable")}</>;
+    case "loss": return <>{t("loss")}</>;
+    case "break_even": return <>{t("breakEven")}</>;
   }
 }
 
@@ -167,24 +169,25 @@ function ProfitabilityPanel({
     return { projectedRevenue: rev, totalExpenses: expenses, netProfit: rev - expenses };
   }, [watchedProducts, advertisingBudget, shippingCost, otherCosts]);
 
+  const t = useTranslations("campaigns");
   const verdict = calcVerdict(netProfit);
 
   return (
     <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
-      <p className="text-sm font-semibold mb-3">Live Profitability</p>
+      <p className="text-sm font-semibold mb-3">{t("liveProfitability")}</p>
       <div className="flex justify-between text-sm">
-        <span className="text-muted-foreground">Projected Revenue</span>
+        <span className="text-muted-foreground">{t("projectedRevenue")}</span>
         <span className="tabular-nums font-medium">{formatCurrency(projectedRevenue)}</span>
       </div>
       <div className="flex justify-between text-sm">
-        <span className="text-muted-foreground">Total Costs</span>
+        <span className="text-muted-foreground">{t("totalCosts")}</span>
         <span className="tabular-nums font-medium text-red-600">
           -{formatCurrency(totalExpenses)}
         </span>
       </div>
       <Separator />
       <div className="flex justify-between font-bold">
-        <span>Net Profit</span>
+        <span>{t("netProfit")}</span>
         <span
           className={`tabular-nums ${
             netProfit >= 0 ? "text-green-600" : "text-red-600"
@@ -196,7 +199,7 @@ function ProfitabilityPanel({
       <div className="flex justify-center pt-1">
         <Badge variant={verdictVariant(verdict)} className="gap-1.5">
           <VerdictIcon verdict={verdict} />
-          {verdictLabel(verdict)}
+          <VerdictLabelText verdict={verdict} />
         </Badge>
       </div>
     </div>
@@ -212,6 +215,7 @@ function CampaignFormDialog({
   open: boolean;
   onClose: () => void;
 }) {
+  const t = useTranslations("campaigns");
   const createCampaign = useCreateCampaign();
   const { data: products = [] } = useProducts();
 
@@ -256,7 +260,7 @@ function CampaignFormDialog({
     <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
       <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>New Campaign</DialogTitle>
+          <DialogTitle>{t("newCampaign")}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
@@ -264,7 +268,7 @@ function CampaignFormDialog({
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-1.5 col-span-1">
               <Label htmlFor="name">
-                Campaign Name <span className="text-destructive">*</span>
+                {t("campaignName")} <span className="text-destructive">*</span>
               </Label>
               <Input id="name" {...register("name")} placeholder="e.g. Ramadan Sale 2025" />
               {errors.name && (
@@ -272,21 +276,21 @@ function CampaignFormDialog({
               )}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="startDate">Start Date</Label>
+              <Label htmlFor="startDate">{t("startDate")}</Label>
               <Input id="startDate" type="date" {...register("startDate")} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="endDate">End Date</Label>
+              <Label htmlFor="endDate">{t("endDate")}</Label>
               <Input id="endDate" type="date" {...register("endDate")} />
             </div>
           </div>
 
           {/* Budget Section */}
           <div>
-            <p className="text-sm font-semibold mb-3">Budget</p>
+            <p className="text-sm font-semibold mb-3">{t("budget")}</p>
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="advertisingBudget">Advertising Budget</Label>
+                <Label htmlFor="advertisingBudget">{t("advertisingBudget")}</Label>
                 <Input
                   id="advertisingBudget"
                   type="number"
@@ -297,7 +301,7 @@ function CampaignFormDialog({
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="shippingCost">Shipping Cost</Label>
+                <Label htmlFor="shippingCost">{t("shippingCost")}</Label>
                 <Input
                   id="shippingCost"
                   type="number"
@@ -308,7 +312,7 @@ function CampaignFormDialog({
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="otherCosts">Other Costs</Label>
+                <Label htmlFor="otherCosts">{t("otherCosts")}</Label>
                 <Input
                   id="otherCosts"
                   type="number"
@@ -326,7 +330,7 @@ function CampaignFormDialog({
           {/* Products Table */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <Label className="text-base font-semibold">Products</Label>
+              <Label className="text-base font-semibold">{t("addProduct")}</Label>
               <Button
                 type="button"
                 variant="outline"
@@ -342,7 +346,7 @@ function CampaignFormDialog({
                 }
               >
                 <Plus className="mr-1.5 h-3.5 w-3.5" />
-                Add Product
+                {t("addProduct")}
               </Button>
             </div>
 
@@ -350,12 +354,12 @@ function CampaignFormDialog({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Product</TableHead>
-                    <TableHead className="w-28">Original Price</TableHead>
-                    <TableHead className="w-28">Campaign Price</TableHead>
-                    <TableHead className="w-28">COGS</TableHead>
-                    <TableHead className="w-28">Expected Units</TableHead>
-                    <TableHead className="w-28 text-right">Proj. Revenue</TableHead>
+                    <TableHead>{t("selectProduct")}</TableHead>
+                    <TableHead className="w-28">{t("originalPrice")}</TableHead>
+                    <TableHead className="w-28">{t("campaignPrice")}</TableHead>
+                    <TableHead className="w-28">{t("cogs")}</TableHead>
+                    <TableHead className="w-28">{t("expectedUnits")}</TableHead>
+                    <TableHead className="w-28 text-right">{t("projRevenue")}</TableHead>
                     <TableHead className="w-10"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -393,7 +397,7 @@ function CampaignFormDialog({
                             }}
                           >
                             <SelectTrigger className="h-8 text-sm">
-                              <SelectValue placeholder="Select product" />
+                              <SelectValue placeholder={t("selectProduct")} />
                             </SelectTrigger>
                             <SelectContent>
                               {(products as any[]).map((p) => (
@@ -478,10 +482,10 @@ function CampaignFormDialog({
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={handleClose}>
-              Cancel
+              {t("cancel")}
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Saving…" : "Create Campaign"}
+              {isSubmitting ? t("saving") : t("createCampaign")}
             </Button>
           </DialogFooter>
         </form>
@@ -499,6 +503,7 @@ function CampaignCard({
   campaign: any;
   onDelete: (id: string) => void;
 }) {
+  const t = useTranslations("campaigns");
   const { projectedRevenue, totalExpenses, netProfit } = calcCampaignNumbers(campaign);
   const verdict = calcVerdict(netProfit);
 
@@ -509,7 +514,7 @@ function CampaignCard({
           <CardTitle className="text-base leading-snug">{campaign.name}</CardTitle>
           <Badge variant={verdictVariant(verdict)} className="shrink-0 gap-1">
             <VerdictIcon verdict={verdict} />
-            {verdictLabel(verdict)}
+            <VerdictLabelText verdict={verdict} />
           </Badge>
         </div>
         {(campaign.startDate || campaign.endDate) && (
@@ -527,20 +532,20 @@ function CampaignCard({
         {/* Budget breakdown */}
         <div className="rounded-lg bg-muted/40 p-3 space-y-1.5 text-sm">
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Advertising</span>
+            <span className="text-muted-foreground">{t("advertising")}</span>
             <span className="tabular-nums">{formatCurrency(campaign.advertisingBudget ?? 0)}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Shipping</span>
+            <span className="text-muted-foreground">{t("shipping")}</span>
             <span className="tabular-nums">{formatCurrency(campaign.shippingCost ?? 0)}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Other</span>
+            <span className="text-muted-foreground">{t("other")}</span>
             <span className="tabular-nums">{formatCurrency(campaign.otherCosts ?? 0)}</span>
           </div>
           <Separator />
           <div className="flex justify-between font-medium">
-            <span>Total Expenses</span>
+            <span>{t("totalExpenses")}</span>
             <span className="tabular-nums text-red-600">{formatCurrency(totalExpenses)}</span>
           </div>
         </div>
@@ -548,11 +553,11 @@ function CampaignCard({
         {/* Revenue / profit */}
         <div className="space-y-1.5 text-sm">
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Proj. Revenue</span>
+            <span className="text-muted-foreground">{t("projRevenue")}</span>
             <span className="tabular-nums font-medium">{formatCurrency(projectedRevenue)}</span>
           </div>
           <div className="flex justify-between font-semibold">
-            <span>Net Profit</span>
+            <span>{t("netProfit")}</span>
             <span
               className={`tabular-nums ${
                 netProfit >= 0 ? "text-green-600" : "text-red-600"
@@ -567,7 +572,7 @@ function CampaignCard({
         {campaign.products?.length > 0 && (
           <div>
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
-              Products ({campaign.products.length})
+              {t("productCount", { count: campaign.products.length })}
             </p>
             <div className="flex flex-wrap gap-1.5">
               {campaign.products.map((p: any, i: number) => (
@@ -591,7 +596,7 @@ function CampaignCard({
           onClick={() => onDelete(campaign.id)}
         >
           <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-          Delete
+          {t("delete")}
         </Button>
       </CardFooter>
     </Card>
@@ -601,6 +606,8 @@ function CampaignCard({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CampaignsPage() {
+  const t = useTranslations("campaigns");
+  const tc = useTranslations("common");
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
@@ -618,12 +625,12 @@ export default function CampaignsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Campaigns</h1>
-          <p className="text-sm text-muted-foreground">Plan and track marketing campaigns</p>
+          <h1 className="text-2xl font-bold tracking-tight">{t("title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
         </div>
         <Button onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          New Campaign
+          <Plus className="me-2 h-4 w-4" />
+          {t("newCampaign")}
         </Button>
       </div>
 
@@ -637,13 +644,13 @@ export default function CampaignsPage() {
       ) : (campaigns as any[]).length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-20 text-center">
           <Megaphone className="mb-4 h-12 w-12 text-muted-foreground/40" />
-          <h3 className="text-lg font-semibold">No campaigns yet</h3>
+          <h3 className="text-lg font-semibold">{t("noCampaignsYet")}</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Create your first campaign to start tracking profitability.
+            {t("getStarted")}
           </p>
           <Button className="mt-4" onClick={() => setCreateOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            New Campaign
+            <Plus className="me-2 h-4 w-4" />
+            {t("newCampaign")}
           </Button>
         </div>
       ) : (
@@ -665,19 +672,18 @@ export default function CampaignsPage() {
       <AlertDialog open={!!deleteId} onOpenChange={(v) => !v && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Campaign</AlertDialogTitle>
+            <AlertDialogTitle>{t("deleteCampaignTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the campaign and all its data. This action cannot
-              be undone.
+              {t("deleteCampaignDesc")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{tc("cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={handleDelete}
             >
-              Delete
+              {tc("delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

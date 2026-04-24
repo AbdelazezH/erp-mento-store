@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 type TokenState =
   | { status: "loading" }
@@ -16,6 +17,7 @@ type TokenState =
   | { status: "invalid"; message: string };
 
 export default function AcceptInvitePage() {
+  const t = useTranslations("invite");
   const { token } = useParams<{ token: string }>();
   const router = useRouter();
 
@@ -72,7 +74,7 @@ export default function AcceptInvitePage() {
           <Card>
             <CardContent className="pt-8 pb-8 flex flex-col items-center gap-3">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              <p className="text-muted-foreground text-sm">Verifying invitation...</p>
+              <p className="text-muted-foreground text-sm">{t("verifying")}</p>
             </CardContent>
           </Card>
         )}
@@ -81,9 +83,9 @@ export default function AcceptInvitePage() {
           <Card>
             <CardContent className="pt-8 pb-8 flex flex-col items-center gap-3 text-center">
               <XCircle className="h-10 w-10 text-destructive" />
-              <h2 className="font-semibold text-lg">Invitation Invalid</h2>
+              <h2 className="font-semibold text-lg">{t("invitationInvalid")}</h2>
               <p className="text-muted-foreground text-sm">{tokenState.message}</p>
-              <p className="text-xs text-muted-foreground">Please ask your admin to send a new invitation.</p>
+              <p className="text-xs text-muted-foreground">{t("askAdminInvite")}</p>
             </CardContent>
           </Card>
         )}
@@ -94,9 +96,9 @@ export default function AcceptInvitePage() {
               <div className="flex justify-center mb-2">
                 <CheckCircle2 className="h-8 w-8 text-green-500" />
               </div>
-              <CardTitle>You're invited!</CardTitle>
+              <CardTitle>{t("youreInvited")}</CardTitle>
               <CardDescription>
-                Set up your account for <strong>{tokenState.email}</strong>
+                {t("setupAccount", { email: tokenState.email })}
               </CardDescription>
               <div className="flex justify-center mt-1">
                 <Badge variant={tokenState.role === "admin" ? "default" : "secondary"} className="capitalize">
@@ -108,7 +110,7 @@ export default function AcceptInvitePage() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label htmlFor="firstName">First Name</Label>
+                    <Label htmlFor="firstName">{t("firstName")}</Label>
                     <Input
                       id="firstName"
                       value={firstName}
@@ -118,7 +120,7 @@ export default function AcceptInvitePage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="lastName">Last Name</Label>
+                    <Label htmlFor="lastName">{t("lastName")}</Label>
                     <Input
                       id="lastName"
                       value={lastName}
@@ -128,7 +130,7 @@ export default function AcceptInvitePage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
+                  <Label htmlFor="password">{t("password")}</Label>
                   <Input
                     id="password"
                     type="password"
@@ -136,11 +138,11 @@ export default function AcceptInvitePage() {
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     minLength={8}
-                    placeholder="At least 8 characters"
+                    placeholder={t("atLeast8")}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="confirm">Confirm Password</Label>
+                  <Label htmlFor="confirm">{t("confirmPassword")}</Label>
                   <Input
                     id="confirm"
                     type="password"
@@ -150,7 +152,7 @@ export default function AcceptInvitePage() {
                   />
                 </div>
                 <Button type="submit" className="w-full" disabled={submitting}>
-                  {submitting ? "Creating account..." : "Create Account & Sign In"}
+                  {submitting ? t("creatingAccount") : t("createAccount")}
                 </Button>
               </form>
             </CardContent>

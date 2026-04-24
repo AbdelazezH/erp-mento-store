@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { useDashboard, useBillStats, usePeriodProfit, useTrend } from "@/hooks/use-api";
 import { formatCurrency, formatNumber } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,17 +44,6 @@ import {
 } from "@/components/ui/select";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-const BILL_TYPE_LABELS: Record<string, string> = {
-  supplier_bill: "Supplier",
-  other_expense: "Other Expense",
-  operation_invoice: "Operations",
-  packaging_invoice: "Packaging",
-  shipping_invoice: "Shipping",
-  devices_invoice: "Devices",
-  website_invoice: "Website",
-  advertising_bill: "Advertising",
-};
 
 const PAYER_COLORS = [
   "#6366f1", "#8b5cf6", "#3b82f6", "#06b6d4", "#10b981",
@@ -146,6 +136,20 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
 // ─── Dashboard Page ───────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
+  const t = useTranslations("dashboard");
+  const tc = useTranslations("common");
+
+  const BILL_TYPE_LABELS: Record<string, string> = {
+    supplier_bill: t("billTypeSupplier"),
+    other_expense: t("billTypeOtherExpense"),
+    operation_invoice: t("billTypeOperation"),
+    packaging_invoice: t("billTypePackaging"),
+    shipping_invoice: t("billTypeShipping"),
+    devices_invoice: t("billTypeDevices"),
+    website_invoice: t("billTypeWebsite"),
+    advertising_bill: t("billTypeAdvertising"),
+  };
+
   const { data, isLoading } = useDashboard();
   const { data: billStatsData } = useBillStats();
 
@@ -191,6 +195,13 @@ export default function DashboardPage() {
   const currentYear = now.getFullYear();
   const years = Array.from({ length: 6 }, (_, i) => currentYear - i);
 
+  const trendLabels = {
+    daily: t("daily"),
+    weekly: t("weekly"),
+    monthly: t("monthly"),
+    yearly: t("yearly"),
+  };
+
   const trendChartData = trendData?.data ?? [];
   const categoryData = (stats?.categoryAnalytics ?? []).map((c: any) => ({
     ...c,
@@ -214,29 +225,29 @@ export default function DashboardPage() {
 
       {/* ── 1. Sales & Profit ──────────────────────────────────────────── */}
       <div>
-        <SectionHeader>Sales &amp; Profit</SectionHeader>
+        <SectionHeader>{t("salesProfit")}</SectionHeader>
         <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
           <StatCard
-            title="Total Delivered Orders"
+            title={t("totalDeliveredOrders")}
             value={formatNumber(stats?.orderCount ?? 0)}
-            subtitle="Completed orders"
+            subtitle={t("completedOrders")}
             icon={ShoppingCart}
             color="green"
           />
           <StatCard
-            title="Total Sales"
+            title={t("totalSales")}
             value={formatCurrency(stats?.totalRevenue)}
-            subtitle={`${stats?.orderCount ?? 0} delivered orders`}
+            subtitle={t("deliveredOrders", { count: stats?.orderCount ?? 0 })}
             icon={DollarSign}
             color="blue"
           />
           <StatCard
-            title="Total Profit"
+            title={t("totalProfit")}
             value={formatCurrency(stats?.totalProfit)}
             subtitle={
               stats?.totalRevenue > 0
-                ? `${((parseFloat(stats.totalProfit) / parseFloat(stats.totalRevenue)) * 100).toFixed(1)}% margin`
-                : "No revenue yet"
+                ? t("margin", { value: ((parseFloat(stats.totalProfit) / parseFloat(stats.totalRevenue)) * 100).toFixed(1) })
+                : t("noRevenueYet")
             }
             icon={TrendingUp}
             color="green"
@@ -246,26 +257,26 @@ export default function DashboardPage() {
 
       {/* ── 2. Inventory ───────────────────────────────────────────────── */}
       <div>
-        <SectionHeader>Inventory</SectionHeader>
+        <SectionHeader>{t("inventory")}</SectionHeader>
         <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
           <StatCard
-            title="Products"
+            title={t("products")}
             value={formatNumber(stats?.productCount)}
-            subtitle={stats?.lowStockCount > 0 ? `${stats.lowStockCount} low stock` : "All stocked"}
+            subtitle={stats?.lowStockCount > 0 ? t("lowStockItems", { count: stats.lowStockCount }) : t("allStocked")}
             icon={Package}
             color={stats?.lowStockCount > 0 ? "red" : "blue"}
           />
           <StatCard
-            title="Inventory Value"
+            title={t("inventoryValue")}
             value={formatCurrency(stats?.inventoryValue)}
-            subtitle="Current stock at cost"
+            subtitle={t("currentStockAtCost")}
             icon={Boxes}
             color="purple"
           />
           <StatCard
-            title="Expected Inventory Profit"
+            title={t("expectedInventoryProfit")}
             value={formatCurrency(stats?.expectedInventoryProfit)}
-            subtitle="Based on selling vs base price"
+            subtitle={t("basedOnSellingVsBase")}
             icon={ArrowUpRight}
             color="green"
           />
@@ -274,26 +285,26 @@ export default function DashboardPage() {
 
       {/* ── 3. Investments & Expenses ──────────────────────────────────── */}
       <div>
-        <SectionHeader>Investments &amp; Expenses</SectionHeader>
+        <SectionHeader>{t("investmentsExpenses")}</SectionHeader>
         <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
           <StatCard
-            title="Total Investment"
+            title={t("totalInvestment")}
             value={formatCurrency(stats?.totalInvestment)}
-            subtitle="All invoices ever"
+            subtitle={t("allInvoicesEver")}
             icon={Wallet}
             color="purple"
           />
           <StatCard
-            title="Total Goods"
+            title={t("totalGoods")}
             value={formatCurrency(stats?.totalGoods)}
-            subtitle="Supplier invoices only"
+            subtitle={t("supplierInvoicesOnly")}
             icon={Store}
             color="orange"
           />
           <StatCard
-            title="Total Expenses"
+            title={t("totalExpenses")}
             value={formatCurrency(stats?.totalExpensesAllTime)}
-            subtitle="Non-supplier invoices"
+            subtitle={t("nonSupplierInvoices")}
             icon={Receipt}
             color="red"
           />
@@ -302,11 +313,11 @@ export default function DashboardPage() {
 
       {/* ── 4. General Stats ───────────────────────────────────────────── */}
       <div>
-        <SectionHeader>General Stats</SectionHeader>
+        <SectionHeader>{t("generalStats")}</SectionHeader>
         <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
-          <StatCard title="Suppliers" value={formatNumber(stats?.supplierCount)} icon={Truck} color="purple" />
-          <StatCard title="Customers" value={formatNumber(stats?.customerCount)} icon={Users} color="green" />
-          <StatCard title="Categories" value={formatNumber(stats?.categoryCount)} icon={BarChart3} color="orange" />
+          <StatCard title={t("suppliers")} value={formatNumber(stats?.supplierCount)} icon={Truck} color="purple" />
+          <StatCard title={t("customers")} value={formatNumber(stats?.customerCount)} icon={Users} color="green" />
+          <StatCard title={t("categories")} value={formatNumber(stats?.categoryCount)} icon={BarChart3} color="orange" />
         </div>
       </div>
 
@@ -318,8 +329,8 @@ export default function DashboardPage() {
               <div className="flex items-center gap-2">
                 <Calculator className="h-5 w-5 text-muted-foreground" />
                 <div>
-                  <CardTitle className="text-base">Period Profit Analysis</CardTitle>
-                  <p className="text-xs text-muted-foreground mt-0.5">Revenue minus all costs, expenses &amp; offer spend</p>
+                  <CardTitle className="text-base">{t("periodProfitAnalysis")}</CardTitle>
+                  <p className="text-xs text-muted-foreground mt-0.5">{t("revenueMinus")}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -356,43 +367,43 @@ export default function DashboardPage() {
             ) : (
               <div className="flex gap-4 overflow-x-auto pb-2">
                 <PeriodMetricCard
-                  label="Sales Revenue"
+                  label={t("salesRevenue")}
                   value={period?.salesRevenue ?? 0}
-                  subtitle="From orders"
+                  subtitle={t("fromOrders")}
                   colorClass="bg-blue-50 border-blue-100"
                 />
                 <PeriodMetricCard
-                  label="Cost of Goods"
+                  label={t("costOfGoods")}
                   value={period?.costOfGoods ?? 0}
-                  subtitle="Product costs"
+                  subtitle={t("productCosts")}
                   negative
                   colorClass="bg-yellow-50 border-yellow-100"
                 />
                 <PeriodMetricCard
-                  label="Operating Expenses"
+                  label={t("operatingExpenses")}
                   value={period?.operatingExpenses ?? 0}
-                  subtitle="Non-supplier invoices"
+                  subtitle={t("nonSupplierInvoicesLabel")}
                   negative
                   colorClass="bg-orange-50 border-orange-100"
                 />
                 <PeriodMetricCard
-                  label="Shipping Discounts"
+                  label={t("shippingDiscounts")}
                   value={period?.shippingDiscounts ?? 0}
-                  subtitle="Waived shipping fees"
+                  subtitle={t("waivedShippingFees")}
                   negative
                   colorClass="bg-purple-50 border-purple-100"
                 />
                 <PeriodMetricCard
-                  label="Free Items Value"
+                  label={t("freeItemsValue")}
                   value={period?.freeItemsValue ?? 0}
-                  subtitle="Gifted product cost"
+                  subtitle={t("giftedProductCost")}
                   negative
                   colorClass="bg-rose-50 border-rose-100"
                 />
                 <PeriodMetricCard
-                  label="True Net Profit"
+                  label={t("trueNetProfit")}
                   value={period?.trueNetProfit ?? 0}
-                  subtitle={`${period?.margin ?? "0"}% margin`}
+                  subtitle={t("margin", { value: period?.margin ?? "0" })}
                   colorClass="bg-gray-50 border-gray-200"
                 />
               </div>
@@ -407,7 +418,7 @@ export default function DashboardPage() {
         {/* Revenue & Profit Trend */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Revenue &amp; Profit Trend</CardTitle>
+            <CardTitle className="text-base">{t("revenueProfitTrend")}</CardTitle>
             <div className="flex items-center gap-2 flex-wrap mt-2">
               {(["daily", "weekly", "monthly", "yearly"] as const).map((g) => (
                 <button
@@ -419,7 +430,7 @@ export default function DashboardPage() {
                       : "bg-muted text-muted-foreground hover:bg-muted/80"
                   }`}
                 >
-                  {g.charAt(0).toUpperCase() + g.slice(1)}
+                  {trendLabels[g]}
                 </button>
               ))}
               <div className="flex items-center gap-1 ml-auto">
@@ -454,17 +465,17 @@ export default function DashboardPage() {
                     tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
                   />
                   <Tooltip
-                    formatter={(value: any, name: string) => [formatCurrency(value), name === "revenue" ? "Revenue" : "Profit"]}
+                    formatter={(value: any, name: string) => [formatCurrency(value), name === "revenue" ? tc("revenue") : tc("profit")]}
                     contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))" }}
                   />
-                  <Legend formatter={(v) => v === "revenue" ? "Revenue" : "Profit"} />
+                  <Legend formatter={(v) => v === "revenue" ? tc("revenue") : tc("profit")} />
                   <Line type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
                   <Line type="monotone" dataKey="profit" stroke="#22c55e" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
               <div className="flex h-[280px] items-center justify-center text-muted-foreground text-sm">
-                No data for selected period
+                {t("noDataForPeriod")}
               </div>
             )}
           </CardContent>
@@ -473,7 +484,7 @@ export default function DashboardPage() {
         {/* Category Performance */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Category Performance</CardTitle>
+            <CardTitle className="text-base">{t("categoryPerformance")}</CardTitle>
           </CardHeader>
           <CardContent>
             {categoryData.length > 0 ? (
@@ -496,17 +507,17 @@ export default function DashboardPage() {
                     width={90}
                   />
                   <Tooltip
-                    formatter={(value: any, name: string) => [formatCurrency(value), name === "revenue" ? "Revenue" : "Cost"]}
+                    formatter={(value: any, name: string) => [formatCurrency(value), name === "revenue" ? tc("revenue") : tc("cost")]}
                     contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))" }}
                   />
-                  <Legend formatter={(v) => v === "revenue" ? "Revenue" : "Cost"} />
+                  <Legend formatter={(v) => v === "revenue" ? tc("revenue") : tc("cost")} />
                   <Bar dataKey="revenue" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={12} />
                   <Bar dataKey="cost" fill="#ef4444" radius={[0, 4, 4, 0]} barSize={12} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
               <div className="flex h-[280px] items-center justify-center text-muted-foreground text-sm">
-                No sales data yet
+                {t("noSalesDataYet")}
               </div>
             )}
           </CardContent>
@@ -516,8 +527,8 @@ export default function DashboardPage() {
       {/* ── 7. Spend by Payer ──────────────────────────────────────────── */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Spend by Payer</CardTitle>
-          <p className="text-xs text-muted-foreground">Total invoice amount per &ldquo;Paid By&rdquo; person</p>
+          <CardTitle className="text-base">{t("spendByPayer")}</CardTitle>
+          <p className="text-xs text-muted-foreground">{t("totalInvoicePerPerson")}</p>
         </CardHeader>
         <CardContent>
           {payerData.length > 0 ? (
@@ -532,7 +543,7 @@ export default function DashboardPage() {
                   tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
                 />
                 <Tooltip
-                  formatter={(value: any) => [formatCurrency(value), "Total Spend"]}
+                  formatter={(value: any) => [formatCurrency(value), t("totalSpend")]}
                   contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))" }}
                 />
                 <Bar dataKey="total" radius={[4, 4, 0, 0]}>
@@ -544,7 +555,7 @@ export default function DashboardPage() {
             </ResponsiveContainer>
           ) : (
             <div className="flex h-[260px] items-center justify-center text-muted-foreground text-sm">
-              No payer data yet
+              {t("noPayerDataYet")}
             </div>
           )}
         </CardContent>
@@ -556,7 +567,7 @@ export default function DashboardPage() {
         {/* Investment by Category */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Investment by Category</CardTitle>
+            <CardTitle className="text-base">{t("investmentByCategory")}</CardTitle>
           </CardHeader>
           <CardContent>
             {investData.length > 0 ? (
@@ -579,7 +590,7 @@ export default function DashboardPage() {
               </ResponsiveContainer>
             ) : (
               <div className="flex h-[260px] items-center justify-center text-muted-foreground text-sm">
-                No investment data yet
+                {t("noInvestmentDataYet")}
               </div>
             )}
           </CardContent>
@@ -588,7 +599,7 @@ export default function DashboardPage() {
         {/* Top Selling Products */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Top Selling Products</CardTitle>
+            <CardTitle className="text-base">{t("topSellingProducts")}</CardTitle>
           </CardHeader>
           <CardContent>
             {topProducts.length > 0 ? (
@@ -597,9 +608,9 @@ export default function DashboardPage() {
                   <thead>
                     <tr className="border-b text-muted-foreground text-xs">
                       <th className="text-left pb-2 font-medium w-8">#</th>
-                      <th className="text-left pb-2 font-medium">Product</th>
-                      <th className="text-right pb-2 font-medium">Units</th>
-                      <th className="text-right pb-2 font-medium">Revenue</th>
+                      <th className="text-left pb-2 font-medium">{t("product")}</th>
+                      <th className="text-right pb-2 font-medium">{tc("units")}</th>
+                      <th className="text-right pb-2 font-medium">{tc("revenue")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -619,7 +630,7 @@ export default function DashboardPage() {
               </div>
             ) : (
               <div className="flex h-[260px] items-center justify-center text-muted-foreground text-sm">
-                No sales data yet
+                {t("noSalesDataYet")}
               </div>
             )}
           </CardContent>
@@ -633,9 +644,9 @@ export default function DashboardPage() {
             <div className="flex items-center gap-3">
               <AlertTriangle className="h-5 w-5 text-orange-600 shrink-0" />
               <div>
-                <p className="font-medium text-orange-800">Low Stock Alert</p>
+                <p className="font-medium text-orange-800">{t("lowStockAlert")}</p>
                 <p className="text-sm text-orange-700">
-                  {stats.lowStockCount} product{stats.lowStockCount !== 1 ? "s" : ""} have less than 10 units in stock.
+                  {t("lowStockMessage", { count: stats.lowStockCount })}
                 </p>
               </div>
             </div>

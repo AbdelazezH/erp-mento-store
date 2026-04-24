@@ -66,17 +66,18 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const BILL_TYPES = [
-  { value: "supplier_bill", label: "Supplier Invoice" },
-  { value: "operation_invoice", label: "Operation Invoice" },
-  { value: "packaging_invoice", label: "Packaging Invoice" },
-  { value: "shipping_invoice", label: "Shipping Invoice" },
-  { value: "devices_invoice", label: "Devices Invoice" },
-  { value: "website_invoice", label: "Website Invoice" },
-  { value: "advertising_bill", label: "Advertising Bill" },
+  { value: "supplier_bill", labelKey: "supplierInvoice" },
+  { value: "operation_invoice", labelKey: "operationInvoice" },
+  { value: "packaging_invoice", labelKey: "packagingInvoice" },
+  { value: "shipping_invoice", labelKey: "shippingInvoice" },
+  { value: "devices_invoice", labelKey: "devicesInvoice" },
+  { value: "website_invoice", labelKey: "websiteInvoice" },
+  { value: "advertising_bill", labelKey: "advertisingBill" },
 ] as const;
 
 export const PAID_BY_OPTIONS = [
@@ -140,6 +141,7 @@ function ProductCombobox({
   value: string | null | undefined;
   onSelect: (product: any) => void;
 }) {
+  const t = useTranslations("invoiceForm");
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const { data: products = [] } = useProducts({ search: search || undefined });
@@ -176,7 +178,7 @@ function ProductCombobox({
               <div className="h-6 w-6 rounded bg-muted shrink-0 flex items-center justify-center">
                 <ImageIcon className="h-3 w-3 text-muted-foreground" />
               </div>
-              <span>Search product...</span>
+              <span>{t("searchProduct")}</span>
             </>
           )}
           <ChevronDown className="ml-auto h-3.5 w-3.5 shrink-0 opacity-50" />
@@ -185,12 +187,12 @@ function ProductCombobox({
       <PopoverContent className="w-80 p-0" align="start">
         <Command shouldFilter={false}>
           <CommandInput
-            placeholder="Search products..."
+            placeholder={t("searchProduct")}
             value={search}
             onValueChange={setSearch}
           />
           <CommandList>
-            <CommandEmpty>No products found.</CommandEmpty>
+            <CommandEmpty>{t("noProductsFound")}</CommandEmpty>
             <CommandGroup>
               {(products as any[]).slice(0, 20).map((product) => (
                 <CommandItem
@@ -246,6 +248,7 @@ function ReceiptDropZone({
   value: string | null | undefined;
   onChange: (url: string | null) => void;
 }) {
+  const t = useTranslations("invoiceForm");
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -298,7 +301,7 @@ function ReceiptDropZone({
       />
 
       {uploading ? (
-        <p className="text-sm text-muted-foreground">Uploading…</p>
+        <p className="text-sm text-muted-foreground">{t("uploading")}</p>
       ) : value ? (
         <div className="flex items-center gap-4 w-full">
           {/* Clickable thumbnail → opens lightbox */}
@@ -314,8 +317,8 @@ function ReceiptDropZone({
             </div>
           </button>
           <div className="flex-1">
-            <p className="text-sm font-medium">Receipt uploaded</p>
-            <p className="text-xs text-muted-foreground">Click image to preview · drag or click area to replace</p>
+            <p className="text-sm font-medium">{t("receiptUploaded")}</p>
+            <p className="text-xs text-muted-foreground">{t("clickToPreview")}</p>
           </div>
           <a
             href={value}
@@ -342,8 +345,8 @@ function ReceiptDropZone({
         <>
           <ImageIcon className="h-8 w-8 text-muted-foreground/50" />
           <p className="text-sm text-muted-foreground">
-            Drop receipt image or{" "}
-            <span className="text-primary font-medium">browse</span>
+            {t("dropReceipt")}{" "}
+            <span className="text-primary font-medium">{t("browse")}</span>
           </p>
         </>
       )}
@@ -401,6 +404,8 @@ export function InvoiceForm({
   defaultValues?: Partial<InvoiceFormValues>;
   initialPayers?: { personName: string; amount: string }[];
 }) {
+  const t = useTranslations("invoiceForm");
+  const tc = useTranslations("common");
   const router = useRouter();
   const createBill = useCreateBill();
   const updateBill = useUpdateBill();
@@ -569,7 +574,7 @@ export function InvoiceForm({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
-            {billId ? "Edit Invoice" : "New Invoice"}
+            {billId ? t("editInvoice") : t("newInvoice")}
           </h1>
           <p className="text-sm text-muted-foreground">
             {billId ? "Update invoice details and line items" : "Create a new invoice or bill"}
@@ -577,10 +582,10 @@ export function InvoiceForm({
         </div>
         <div className="flex items-center gap-2">
           <Button type="button" variant="outline" onClick={() => router.push("/bills")}>
-            Cancel
+            {t("cancel")}
           </Button>
           <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Saving…" : billId ? "Save Changes" : "Create Invoice"}
+            {isSubmitting ? t("saving") : billId ? t("saveInvoice") : t("saveInvoice")}
           </Button>
         </div>
       </div>
@@ -592,7 +597,7 @@ export function InvoiceForm({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>
-                Bill Type <span className="text-destructive">*</span>
+                {t("billType")} <span className="text-destructive">*</span>
               </Label>
               <Select
                 defaultValue={defaultValues?.billType ?? "supplier_bill"}
@@ -602,9 +607,9 @@ export function InvoiceForm({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {BILL_TYPES.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>
-                      {t.label}
+                  {BILL_TYPES.map((bt) => (
+                    <SelectItem key={bt.value} value={bt.value}>
+                      {t(bt.labelKey)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -615,7 +620,7 @@ export function InvoiceForm({
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <Label>
-                    Supplier <span className="text-destructive">*</span>
+                    {t("supplier")} <span className="text-destructive">*</span>
                   </Label>
                   <button
                     type="button"
@@ -623,7 +628,7 @@ export function InvoiceForm({
                     className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
                   >
                     <Plus className="h-3 w-3" />
-                    New Supplier
+                    {t("newSupplierTitle")}
                   </button>
                 </div>
                 <Select
@@ -631,7 +636,7 @@ export function InvoiceForm({
                   onValueChange={(v) => setValue("supplierId", v === "__none__" ? null : v)}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select supplier" />
+                    <SelectValue placeholder={t("selectSupplier")} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">— None —</SelectItem>
@@ -650,11 +655,11 @@ export function InvoiceForm({
 
           {/* Row 2: Name */}
           <div className="space-y-1.5">
-            <Label htmlFor="name">Name <span className="text-muted-foreground font-normal">(optional)</span></Label>
+            <Label htmlFor="name">{t("invoiceName")} <span className="text-muted-foreground font-normal">({tc("optional")})</span></Label>
             <Input
               id="name"
               {...register("name")}
-              placeholder="e.g. March Packaging Run, Office Supplies April…"
+              placeholder={t("invoiceNamePlaceholder")}
             />
           </div>
 
@@ -663,7 +668,7 @@ export function InvoiceForm({
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label>
-                  Paid By <span className="text-destructive">*</span>
+                  {t("paidBy")} <span className="text-destructive">*</span>
                 </Label>
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs text-muted-foreground">Split</span>
@@ -775,7 +780,7 @@ export function InvoiceForm({
             </div>
 
             <div className="space-y-1.5">
-              <Label>Status</Label>
+              <Label>{t("status")}</Label>
               <Select
                 defaultValue={defaultValues?.status ?? "pending"}
                 onValueChange={(v) => setValue("status", v as any)}
@@ -784,10 +789,10 @@ export function InvoiceForm({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="overdue">Overdue</SelectItem>
-                  <SelectItem value="paid">Paid</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                  <SelectItem value="pending">{t("pending")}</SelectItem>
+                  <SelectItem value="overdue">{t("overdue")}</SelectItem>
+                  <SelectItem value="paid">{t("paid")}</SelectItem>
+                  <SelectItem value="cancelled">{t("cancelled2")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -797,7 +802,7 @@ export function InvoiceForm({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label htmlFor="issueDate">
-                Issue Date <span className="text-destructive">*</span>
+                {t("issueDate")} <span className="text-destructive">*</span>
               </Label>
               <Input id="issueDate" type="date" {...register("issueDate")} />
               {errors.issueDate && (
@@ -806,7 +811,7 @@ export function InvoiceForm({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="dueDate">
-                Due Date <span className="text-muted-foreground font-normal">(optional)</span>
+                {t("dueDate")} <span className="text-muted-foreground font-normal">({tc("optional")})</span>
               </Label>
               <Input id="dueDate" type="date" {...register("dueDate")} />
             </div>
@@ -815,12 +820,12 @@ export function InvoiceForm({
           {/* Row 5: Notes */}
           <div className="space-y-1.5">
             <Label htmlFor="notes">
-              Notes <span className="text-muted-foreground font-normal">(optional)</span>
+              {t("notes")} <span className="text-muted-foreground font-normal">({tc("optional")})</span>
             </Label>
             <Textarea
               id="notes"
               {...register("notes")}
-              placeholder="Any additional notes…"
+              placeholder={t("notesPlaceholder")}
               rows={3}
             />
           </div>
@@ -828,7 +833,7 @@ export function InvoiceForm({
           {/* Row 6: Receipt Image */}
           <div className="space-y-1.5">
             <Label>
-              Receipt / Invoice Image <span className="text-muted-foreground font-normal">(optional)</span>
+              {t("receipt")} <span className="text-muted-foreground font-normal">({tc("optional")})</span>
             </Label>
             <ReceiptDropZone
               value={watchedReceiptUrl}
@@ -843,7 +848,7 @@ export function InvoiceForm({
         <CardHeader>
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
-              <CardTitle>Line Items</CardTitle>
+              <CardTitle>{t("lineItems")}</CardTitle>
               {isSupplierInvoice && (
                 <p className="text-sm text-muted-foreground mt-0.5">
                   Select a product to see its historical cost &amp; margin analysis.
@@ -852,7 +857,7 @@ export function InvoiceForm({
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <Button type="button" variant="outline" size="sm" onClick={() => setBulkDialogOpen(true)}>
-                <Percent className="mr-1.5 h-3.5 w-3.5" />
+                <Percent className="me-1.5 h-3.5 w-3.5" />
                 Bulk Discount
               </Button>
               <Button
@@ -870,8 +875,8 @@ export function InvoiceForm({
                   })
                 }
               >
-                <Plus className="mr-1.5 h-3.5 w-3.5" />
-                Add Line
+                <Plus className="me-1.5 h-3.5 w-3.5" />
+                {t("addTextLine")}
               </Button>
             </div>
           </div>
@@ -885,11 +890,11 @@ export function InvoiceForm({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Product / Description</TableHead>
-                  <TableHead className="w-24">Qty</TableHead>
-                  <TableHead className="w-28">Unit Price</TableHead>
-                  <TableHead className="w-36">Discount</TableHead>
-                  <TableHead className="w-28 text-right">Total</TableHead>
+                  <TableHead>{t("product")} / {t("description")}</TableHead>
+                  <TableHead className="w-24">{t("qty")}</TableHead>
+                  <TableHead className="w-28">{t("unitPrice")}</TableHead>
+                  <TableHead className="w-36">{t("disc")}</TableHead>
+                  <TableHead className="w-28 text-right">{t("total")}</TableHead>
                   <TableHead className="w-16"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -1042,7 +1047,7 @@ export function InvoiceForm({
           <div className="mt-4 flex justify-end">
             <div className="w-72 space-y-1.5 text-sm">
               <div className="flex justify-between text-muted-foreground">
-                <span>Sub-total</span>
+                <span>{t("subtotal")}</span>
                 <span className="tabular-nums">{formatCurrency(subTotal)}</span>
               </div>
               {totalDiscount > 0 && (
@@ -1052,7 +1057,7 @@ export function InvoiceForm({
                 </div>
               )}
               <div className="flex justify-between border-t pt-1.5 text-base font-bold">
-                <span>Total</span>
+                <span>{t("grandTotal")}</span>
                 <span className="tabular-nums">{formatCurrency(grandTotal)}</span>
               </div>
             </div>
@@ -1063,10 +1068,10 @@ export function InvoiceForm({
       {/* Sticky bottom bar */}
       <div className="flex justify-end gap-2 pb-8">
         <Button type="button" variant="outline" onClick={() => router.push("/bills")}>
-          Cancel
+          {t("cancel")}
         </Button>
         <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Saving…" : billId ? "Save Changes" : "Create Invoice"}
+          {isSubmitting ? t("saving") : billId ? t("saveInvoice") : t("saveInvoice")}
         </Button>
       </div>
 
@@ -1156,12 +1161,12 @@ export function InvoiceForm({
       <Dialog open={supplierModalOpen} onOpenChange={setSupplierModalOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Add New Supplier</DialogTitle>
+            <DialogTitle>{t("newSupplierTitle")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
               <Label htmlFor="ns-name">
-                Name <span className="text-destructive">*</span>
+                {t("supplierName")} <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="ns-name"
@@ -1211,14 +1216,14 @@ export function InvoiceForm({
                 setNewSupplierPhone("");
               }}
             >
-              Cancel
+              {t("cancel")}
             </Button>
             <Button
               type="button"
               onClick={handleCreateSupplier}
               disabled={!newSupplierName.trim() || createSupplier.isPending}
             >
-              {createSupplier.isPending ? "Adding…" : "Add Supplier"}
+              {createSupplier.isPending ? t("saving") : t("create")}
             </Button>
           </DialogFooter>
         </DialogContent>

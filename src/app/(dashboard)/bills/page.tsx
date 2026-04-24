@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   useInfiniteBills,
   useBillStats,
@@ -63,18 +64,6 @@ import { PAID_BY_OPTIONS } from "@/components/features/invoices/invoice-form";
 
 type BillStatus = "pending" | "overdue" | "paid" | "cancelled";
 
-// Short labels used on filter pills
-const TYPE_PILL_LABELS: Record<string, string> = {
-  supplier_bill:      "Supplier Bill",
-  operation_invoice:  "Operation Bill",
-  packaging_invoice:  "Packaging Bill",
-  shipping_invoice:   "Shipping Bill",
-  devices_invoice:    "Devices Bill",
-  website_invoice:    "Website Service",
-  advertising_bill:   "Advertising Bill",
-  other_expense:      "Other Expense",
-};
-
 // Badge colours per bill type
 const TYPE_BADGE_STYLES: Record<string, string> = {
   supplier_bill:      "bg-blue-50 text-blue-700 border-blue-200",
@@ -105,15 +94,6 @@ const CARD_PALETTES = [
 ];
 
 // ─── Date Preset Helpers ──────────────────────────────────────────────────────
-
-const DATE_PRESETS = [
-  { key: "all",        label: "All time" },
-  { key: "week",       label: "This Week" },
-  { key: "month",      label: "This Month" },
-  { key: "last_month", label: "Last Month" },
-  { key: "year",       label: "This Year" },
-  { key: "custom",     label: "Custom" },
-];
 
 function getPresetRange(preset: string): { from: string; to: string } {
   const now = new Date();
@@ -192,6 +172,42 @@ function StatusDropdown({ bill }: { bill: any }) {
 
 export default function InvoicesPage() {
   const router = useRouter();
+  const t = useTranslations("bills");
+  const tc = useTranslations("common");
+
+  // Short labels used on filter pills
+  const TYPE_PILL_LABELS: Record<string, string> = {
+    supplier_bill:      t("supplierBill"),
+    operation_invoice:  t("operationBill"),
+    packaging_invoice:  t("packagingBill"),
+    shipping_invoice:   t("shippingBill"),
+    devices_invoice:    t("devicesBill"),
+    website_invoice:    t("websiteService"),
+    advertising_bill:   t("advertisingBill"),
+    other_expense:      t("otherExpense"),
+  };
+
+  const DATE_PRESETS = [
+    { key: "all",        label: t("allTime") },
+    { key: "week",       label: t("thisWeek") },
+    { key: "month",      label: t("thisMonth") },
+    { key: "last_month", label: t("lastMonth") },
+    { key: "year",       label: t("thisYear") },
+    { key: "custom",     label: t("custom") },
+  ];
+
+  const TYPE_PILLS = [
+    { key: "all",               label: t("all") },
+    { key: "supplier_bill",     label: t("supplierBill") },
+    { key: "operation_invoice", label: t("operationBill") },
+    { key: "packaging_invoice", label: t("packagingBill") },
+    { key: "shipping_invoice",  label: t("shippingBill") },
+    { key: "devices_invoice",   label: t("devicesBill") },
+    { key: "website_invoice",   label: t("websiteService") },
+    { key: "advertising_bill",  label: t("advertisingBill") },
+    { key: "other_expense",     label: t("otherExpense") },
+  ];
+
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [datePreset, setDatePreset] = useState<"all"|"week"|"month"|"last_month"|"year"|"custom">("all");
@@ -228,9 +244,9 @@ export default function InvoicesPage() {
 
   // Type counts from server (first page metadata — same across all pages)
   const typeCounts = useMemo(() => {
-    const tc = billsData?.pages[0]?.typeCounts ?? {};
-    const all = Object.values(tc).reduce((s: number, n: number) => s + n, 0);
-    return { all, ...tc } as Record<string, number>;
+    const counts = billsData?.pages[0]?.typeCounts ?? {};
+    const all = Object.values(counts).reduce((s: number, n: number) => s + n, 0);
+    return { all, ...counts } as Record<string, number>;
   }, [billsData]);
 
   // Infinite scroll via IntersectionObserver
@@ -255,18 +271,6 @@ export default function InvoicesPage() {
     setDeleteId(null);
   };
 
-  const TYPE_PILLS = [
-    { key: "all",              label: "All" },
-    { key: "supplier_bill",    label: "Supplier Bill" },
-    { key: "operation_invoice",label: "Operation Bill" },
-    { key: "packaging_invoice",label: "Packaging Bill" },
-    { key: "shipping_invoice", label: "Shipping Bill" },
-    { key: "devices_invoice",  label: "Devices Bill" },
-    { key: "website_invoice",  label: "Website Service" },
-    { key: "advertising_bill", label: "Advertising Bill" },
-    { key: "other_expense",    label: "Other Expense" },
-  ];
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -274,13 +278,13 @@ export default function InvoicesPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <Receipt className="h-6 w-6" />
-            Invoices &amp; Expenses
+            {t("title")}
           </h1>
-          <p className="text-sm text-muted-foreground">Track incoming invoices, bills, and payments.</p>
+          <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
         </div>
         <Button onClick={() => router.push("/bills/new")}>
-          <Plus className="mr-2 h-4 w-4" />
-          New Invoice
+          <Plus className="me-2 h-4 w-4" />
+          {t("newInvoice")}
         </Button>
       </div>
 
@@ -318,7 +322,7 @@ export default function InvoicesPage() {
           <div className="relative flex-1 max-w-xs">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <Input
-              placeholder="Search invoices…"
+              placeholder={t("searchPlaceholder")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9"
@@ -360,7 +364,7 @@ export default function InvoicesPage() {
             <DropdownMenuTrigger asChild>
               <button className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-3 h-9 text-sm font-medium hover:bg-muted transition-colors whitespace-nowrap">
                 <User className="h-3.5 w-3.5 text-muted-foreground" />
-                {payerFilter === "all" ? "All Payers" : payerFilter}
+                {payerFilter === "all" ? t("allPayers") : payerFilter}
                 <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
               </button>
             </DropdownMenuTrigger>
@@ -369,7 +373,7 @@ export default function InvoicesPage() {
                 className="flex items-center justify-between"
                 onClick={() => setPayerFilter("all")}
               >
-                All Payers
+                {t("allPayers")}
                 {payerFilter === "all" && <Check className="h-3.5 w-3.5 text-primary" />}
               </DropdownMenuItem>
               {PAID_BY_OPTIONS.map((name) => (
@@ -447,12 +451,12 @@ export default function InvoicesPage() {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/30">
-                <TableHead className="font-semibold">Invoice #</TableHead>
-                <TableHead className="font-semibold">Type</TableHead>
-                <TableHead className="font-semibold">Paid By</TableHead>
-                <TableHead className="font-semibold">Dates</TableHead>
-                <TableHead className="font-semibold">Status</TableHead>
-                <TableHead className="text-right font-semibold">Amount</TableHead>
+                <TableHead className="font-semibold">{t("invoiceHash")}</TableHead>
+                <TableHead className="font-semibold">{tc("type")}</TableHead>
+                <TableHead className="font-semibold">{t("paidBy")}</TableHead>
+                <TableHead className="font-semibold">{t("dates")}</TableHead>
+                <TableHead className="font-semibold">{tc("status")}</TableHead>
+                <TableHead className="text-right font-semibold">{t("amount")}</TableHead>
                 <TableHead className="w-20"></TableHead>
               </TableRow>
             </TableHeader>
@@ -474,16 +478,16 @@ export default function InvoicesPage() {
       ) : bills.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-20 text-center">
           <Receipt className="mb-4 h-12 w-12 text-muted-foreground/40" />
-          <h3 className="text-lg font-semibold">No invoices found</h3>
+          <h3 className="text-lg font-semibold">{t("noInvoicesFound")}</h3>
           <p className="mt-1 text-sm text-muted-foreground">
             {search || typeFilter !== "all" || dateFrom || dateTo || payerFilter !== "all"
-              ? "Try adjusting your filters."
-              : "Get started by recording your first invoice."}
+              ? tc("adjustFilters")
+              : t("getStartedFirst")}
           </p>
           {!search && typeFilter === "all" && !dateFrom && !dateTo && payerFilter === "all" && (
             <Button className="mt-4" onClick={() => router.push("/bills/new")}>
-              <Plus className="mr-2 h-4 w-4" />
-              New Invoice
+              <Plus className="me-2 h-4 w-4" />
+              {t("newInvoice")}
             </Button>
           )}
         </div>
@@ -493,15 +497,15 @@ export default function InvoicesPage() {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/30">
-                <TableHead className="font-semibold">Invoice #</TableHead>
-                <TableHead className="font-semibold">Type</TableHead>
-                <TableHead className="font-semibold">Paid By</TableHead>
+                <TableHead className="font-semibold">{t("invoiceHash")}</TableHead>
+                <TableHead className="font-semibold">{tc("type")}</TableHead>
+                <TableHead className="font-semibold">{t("paidBy")}</TableHead>
                 <TableHead className="font-semibold">
                   <button
                     onClick={() => setDateSortDir((d) => d === "desc" ? "asc" : "desc")}
                     className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
                   >
-                    Dates
+                    {t("dates")}
                     {dateSortDir === "desc" ? (
                       <ChevronDown className="h-3.5 w-3.5" />
                     ) : (
@@ -509,8 +513,8 @@ export default function InvoicesPage() {
                     )}
                   </button>
                 </TableHead>
-                <TableHead className="font-semibold">Status</TableHead>
-                <TableHead className="text-right font-semibold">Amount</TableHead>
+                <TableHead className="font-semibold">{tc("status")}</TableHead>
+                <TableHead className="text-right font-semibold">{t("amount")}</TableHead>
                 <TableHead className="w-20"></TableHead>
               </TableRow>
             </TableHeader>
@@ -595,7 +599,7 @@ export default function InvoicesPage() {
                           bill.status === "overdue" ? "text-orange-600" : "text-muted-foreground"
                         )}>
                           <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
-                          <span>Due: {formatDate(bill.dueDate)}</span>
+                          <span>{t("due", { date: formatDate(bill.dueDate) })}</span>
                         </div>
                       )}
                     </div>
@@ -664,18 +668,18 @@ export default function InvoicesPage() {
       <AlertDialog open={!!deleteId} onOpenChange={(v) => !v && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Invoice</AlertDialogTitle>
+            <AlertDialogTitle>{t("deleteInvoiceTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the invoice. This action cannot be undone.
+              {t("deleteInvoiceDesc")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{tc("cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={handleDelete}
             >
-              Delete
+              {tc("delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -686,7 +690,7 @@ export default function InvoicesPage() {
         <DialogContent className="max-w-3xl p-0 overflow-hidden gap-0 [&>button]:hidden">
           <DialogTitle className="sr-only">Receipt Preview</DialogTitle>
           <div className="flex items-center justify-between px-3 py-2 border-b bg-background">
-            <span className="text-sm font-medium text-muted-foreground">Receipt</span>
+            <span className="text-sm font-medium text-muted-foreground">{t("receipt")}</span>
             <div className="flex items-center gap-1">
               {previewUrl && (
                 <a
@@ -697,7 +701,7 @@ export default function InvoicesPage() {
                   className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1.5 rounded hover:bg-muted"
                 >
                   <Download className="h-3.5 w-3.5" />
-                  Download
+                  {t("download")}
                 </a>
               )}
               <button

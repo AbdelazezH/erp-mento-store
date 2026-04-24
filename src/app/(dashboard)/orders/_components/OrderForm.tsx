@@ -311,18 +311,26 @@ export default function OrderForm({
 
   // Calc summary
   const {
-    paidSubtotal, shippingFee, shippingDiscount,
-    paidCOGS, freeCOGS, costProfileTotal, orderDiscount,
+    subtotal, paidSubtotal, shippingFee, shippingDiscount,
+    freeItemsValue, paidCOGS, freeCOGS, costProfileTotal, orderDiscount,
     grandTotal, estimatedProfit,
   } = useMemo(() => {
     const shippingFeeNum = Number(watchedShippingFee) || 0;
     const shippingDiscountNum = Number(watchedShippingDiscount) || 0;
 
-    // Paid items revenue (selling price × qty)
-    const paid = (watchedItems ?? []).reduce((sum, item) => {
-      if (item.isFree) return sum;
+    // Subtotal = ALL items at selling price × qty
+    const sub = (watchedItems ?? []).reduce((sum, item) => {
       return sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
     }, 0);
+
+    // Free items value at selling price (shown as discount in Grand Total)
+    const freeVal = (watchedItems ?? []).reduce((sum, item) => {
+      if (!item.isFree) return sum;
+      return sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+    }, 0);
+
+    // Paid items revenue
+    const paid = sub - freeVal;
 
     // COGS split by paid / free items
     let paidCogs = 0;
@@ -352,14 +360,16 @@ export default function OrderForm({
     }
     disc = Math.min(disc, paid + shippingFeeNum);
 
-    // Grand Total = paid items + shipping fee − discount
-    const grand = paid + shippingFeeNum - disc;
+    // Grand Total = all items − free items discount + shipping fee − order discount
+    const grand = sub - freeVal + shippingFeeNum - disc;
 
     // Est. Profit = paid items − shipping fee − shipping discount − COGS − free items COGS − cost profiles − discount
     const profit = paid - shippingFeeNum - shippingDiscountNum - paidCogs - freeCogs - cpTotal - disc;
 
     return {
+      subtotal: sub,
       paidSubtotal: paid,
+      freeItemsValue: freeVal,
       shippingFee: shippingFeeNum,
       shippingDiscount: shippingDiscountNum,
       paidCOGS: paidCogs,
@@ -771,6 +781,7 @@ export default function OrderForm({
                         <TableHead className="w-28">Variant</TableHead>
                         <TableHead className="w-24">Qty</TableHead>
                         <TableHead className="w-[80px] min-w-[80px]">Unit Price</TableHead>
+                        <TableHead className="w-[80px] min-w-[80px]">Base Cost</TableHead>
                         <TableHead className="w-16 text-center">Free?</TableHead>
                         <TableHead className="w-28 text-right">Total</TableHead>
                         <TableHead className="w-10"></TableHead>
@@ -780,9 +791,7 @@ export default function OrderForm({
                       {fields.map((field, idx) => {
                         const item = watchedItems?.[idx];
                         const isFree = item?.isFree;
-                        const lineTotal = isFree
-                          ? 0
-                          : (Number(item?.quantity) || 0) * (Number(item?.unitPrice) || 0);
+                        const lineTotal = (Number(item?.quantity) || 0) * (Number(item?.unitPrice) || 0);
 
                         return (
                           <TableRow key={field.id}>
@@ -837,6 +846,23 @@ export default function OrderForm({
                                 disabled={isFree}
                               />
                             </TableCell>
+                            <TableCell className="w-[80px] min-w-[80px] max-w-[80px]">
+                              {(() => {
+                                const prod = (products as any[]).find((p: any) => p.id === item?.productId);
+                                let baseCost = prod ? parseFloat(prod.averageCost ?? prod.basePrice ?? "0") : 0;
+                                if (selectedCampaign && prod) {
+                                  const cp = (selectedCampaign.products ?? []).find(
+                                    (c: any) => c.productId === prod.id,
+                                  );
+                                  if (cp?.cogs) baseCost = parseFloat(cp.cogs);
+                                }
+                                return (
+                                  <span className="text-sm text-muted-foreground tabular-nums block h-8 leading-8">
+                                    {baseCost.toFixed(2)}
+                                  </span>
+                                );
+                              })()}
+                            </TableCell>
                             <TableCell className="text-center">
                               <input
                                 type="checkbox"
@@ -844,23 +870,6 @@ export default function OrderForm({
                                 onChange={(e) => {
                                   const checked = e.target.checked;
                                   setValue(`items.${idx}.isFree`, checked, { shouldValidate: true });
-                                  const prod = (products as any[]).find((p: any) => p.id === item?.productId);
-                                  if (prod) {
-                                    if (checked) {
-                                      // Unit Price shows the base cost so the financial summary deduction is accurate
-                                      let baseCost = parseFloat(prod.averageCost ?? prod.basePrice ?? "0");
-                                      if (selectedCampaign) {
-                                        const cp = (selectedCampaign.products ?? []).find(
-                                          (c: any) => c.productId === prod.id,
-                                        );
-                                        if (cp?.cogs) baseCost = parseFloat(cp.cogs);
-                                      }
-                                      setValue(`items.${idx}.unitPrice`, baseCost, { shouldValidate: true });
-                                    } else {
-                                      // Restore selling price when un-marking as free
-                                      setValue(`items.${idx}.unitPrice`, parseFloat(prod.sellingPrice ?? "0"), { shouldValidate: true });
-                                    }
-                                  }
                                 }}
                                 className="h-4 w-4 rounded border-input"
                               />
@@ -1090,8 +1099,16 @@ export default function OrderForm({
                 <CardContent className="space-y-3">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Subtotal</span>
-                    <span className="tabular-nums font-medium">{formatCurrency(paidSubtotal)}</span>
+                    <span className="tabular-nums font-medium">{formatCurrency(subtotal)}</span>
                   </div>
+                  {freeItemsValue > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Free Items</span>
+                      <span className="tabular-nums font-medium text-red-600">
+                        -{formatCurrency(freeItemsValue)}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Shipping Fee</span>
                     <span className="tabular-nums font-medium">+{formatCurrency(shippingFee)}</span>

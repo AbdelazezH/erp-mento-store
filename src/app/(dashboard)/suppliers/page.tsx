@@ -55,6 +55,7 @@ import {
   Trash2,
   Truck,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 // ─── Schema ──────────────────────────────────────────────────────────────────
 
@@ -82,6 +83,8 @@ function SupplierFormDialog({
   defaultValues?: Partial<SupplierFormValues>;
   supplierId?: string;
 }) {
+  const t = useTranslations("suppliers");
+  const tc = useTranslations("common");
   const createSupplier = useCreateSupplier();
   const updateSupplier = useUpdateSupplier();
 
@@ -122,15 +125,15 @@ function SupplierFormDialog({
     <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{supplierId ? "Edit Supplier" : "New Supplier"}</DialogTitle>
+          <DialogTitle>{supplierId ? t("editSupplier") : t("newSupplier")}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           {/* Name */}
           <div className="space-y-1.5">
             <Label htmlFor="name">
-              Name <span className="text-destructive">*</span>
+              {tc("name")} <span className="text-destructive">*</span>
             </Label>
-            <Input id="name" {...register("name")} placeholder="Supplier name" />
+            <Input id="name" {...register("name")} placeholder={t("supplierNamePlaceholder")} />
             {errors.name && (
               <p className="text-xs text-destructive">{errors.name.message}</p>
             )}
@@ -138,69 +141,69 @@ function SupplierFormDialog({
 
           {/* Contact Name */}
           <div className="space-y-1.5">
-            <Label htmlFor="contactName">Contact Person</Label>
+            <Label htmlFor="contactName">{t("contactPerson")}</Label>
             <Input
               id="contactName"
               {...register("contactName")}
-              placeholder="Full name"
+              placeholder={t("fullNamePlaceholder")}
             />
           </div>
 
           {/* Email + Phone */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{tc("email")}</Label>
               <Input
                 id="email"
                 type="email"
                 {...register("email")}
-                placeholder="supplier@example.com"
+                placeholder={t("emailPlaceholder")}
               />
               {errors.email && (
                 <p className="text-xs text-destructive">{errors.email.message}</p>
               )}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="phone">Phone</Label>
+              <Label htmlFor="phone">{tc("phone")}</Label>
               <Input
                 id="phone"
                 {...register("phone")}
-                placeholder="+1 (555) 000-0000"
+                placeholder={t("phonePlaceholder")}
               />
             </div>
           </div>
 
           {/* Address */}
           <div className="space-y-1.5">
-            <Label htmlFor="address">Address</Label>
+            <Label htmlFor="address">{tc("address")}</Label>
             <Input
               id="address"
               {...register("address")}
-              placeholder="Street, City, Country"
+              placeholder={t("addressPlaceholder")}
             />
           </div>
 
           {/* Notes */}
           <div className="space-y-1.5">
-            <Label htmlFor="notes">Notes</Label>
+            <Label htmlFor="notes">{tc("notes")}</Label>
             <Textarea
               id="notes"
               {...register("notes")}
-              placeholder="Any additional notes…"
+              placeholder={t("notesPlaceholder")}
               rows={3}
             />
           </div>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={handleClose}>
-              Cancel
+              {tc("cancel")}
             </Button>
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting
-                ? "Saving…"
+                ? t("saving")
                 : supplierId
-                ? "Save Changes"
-                : "Create Supplier"}
+                ? t("saveChanges")
+                : t("createSupplier")}
             </Button>
           </DialogFooter>
         </form>
@@ -213,6 +216,8 @@ function SupplierFormDialog({
 
 export default function SuppliersPage() {
   const router = useRouter();
+  const t = useTranslations("suppliers");
+  const tc = useTranslations("common");
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [editSupplier, setEditSupplier] = useState<any | null>(null);
@@ -251,14 +256,14 @@ export default function SuppliersPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Suppliers</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t("title")}</h1>
           <p className="text-sm text-muted-foreground">
-            Manage your supplier relationships
+            {t("subtitle")}
           </p>
         </div>
         <Button onClick={() => setCreateOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
-          New Supplier
+          {t("newSupplier")}
         </Button>
       </div>
 
@@ -266,7 +271,7 @@ export default function SuppliersPage() {
       <div className="relative max-w-sm">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-          placeholder="Search suppliers…"
+          placeholder={t("searchPlaceholder")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-9"
@@ -293,16 +298,16 @@ export default function SuppliersPage() {
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-20 text-center">
           <Truck className="mb-4 h-12 w-12 text-muted-foreground/40" />
-          <h3 className="text-lg font-semibold">No suppliers found</h3>
+          <h3 className="text-lg font-semibold">{t("noSuppliersFound")}</h3>
           <p className="mt-1 text-sm text-muted-foreground">
             {search
-              ? "Try a different search term."
-              : "Add your first supplier to get started."}
+              ? t("tryDifferentSearch")
+              : t("noSuppliersGetStarted")}
           </p>
           {!search && (
             <Button className="mt-4" onClick={() => setCreateOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
-              New Supplier
+              {t("newSupplier")}
             </Button>
           )}
         </div>
@@ -312,12 +317,12 @@ export default function SuppliersPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Contact</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead className="text-right">Products</TableHead>
-                <TableHead className="text-right">Total Spend</TableHead>
+                <TableHead>{tc("name")}</TableHead>
+                <TableHead>{t("contactPerson")}</TableHead>
+                <TableHead>{tc("email")}</TableHead>
+                <TableHead>{tc("phone")}</TableHead>
+                <TableHead className="text-right">{t("products")}</TableHead>
+                <TableHead className="text-right">{t("totalSpend")}</TableHead>
                 <TableHead className="w-12"></TableHead>
               </TableRow>
             </TableHeader>
@@ -384,14 +389,14 @@ export default function SuppliersPage() {
                           onClick={() => setEditSupplier(supplier)}
                         >
                           <Pencil className="mr-2 h-4 w-4" />
-                          Edit
+                          {tc("edit")}
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           className="text-destructive focus:text-destructive"
                           onClick={() => setDeleteId(supplier.id)}
                         >
                           <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
+                          {tc("delete")}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -450,19 +455,18 @@ export default function SuppliersPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Supplier</AlertDialogTitle>
+            <AlertDialogTitle>{t("deleteSupplierTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the supplier. Products linked to this
-              supplier will not be deleted. This action cannot be undone.
+              {t("deleteSupplierDesc")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{tc("cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={handleDelete}
             >
-              Delete
+              {tc("delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useTranslations } from "next-intl";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -20,6 +21,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export default function BusinessSettingsPage() {
+  const t = useTranslations("settings");
   const { data: settings, isLoading } = useBusinessSettings();
   const updateMutation = useUpdateBusinessSettings();
 
@@ -47,25 +49,23 @@ export default function BusinessSettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Business Settings</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{t("businessTitle")}</h1>
         <p className="text-sm text-muted-foreground">
-          Configure business-wide defaults used across the system.
+          {t("businessSubtitle")}
         </p>
       </div>
 
       <Card className="max-w-lg">
         <CardHeader>
-          <CardTitle className="text-base">Shipping Cost Threshold</CardTitle>
+          <CardTitle className="text-base">{t("shippingThreshold")}</CardTitle>
           <CardDescription>
-            Shipping fees at or below this amount are treated as a pass-through
-            (customer pays = business pays — no profit impact). Only the amount{" "}
-            <strong>above</strong> this threshold is deducted from Est. Profit.
+            {t("shippingThresholdDesc")}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="threshold">Threshold (EGP)</Label>
+              <Label htmlFor="threshold">{t("thresholdEgp")}</Label>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">EGP</span>
                 <Input
@@ -88,7 +88,7 @@ export default function BusinessSettingsPage() {
               type="submit"
               disabled={!isDirty || updateMutation.isPending || isLoading}
             >
-              {updateMutation.isPending ? "Saving…" : "Save"}
+              {updateMutation.isPending ? t("saving") : t("saveBtn")}
             </Button>
           </form>
         </CardContent>

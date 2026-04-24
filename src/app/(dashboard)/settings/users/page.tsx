@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { UserPlus, MoreHorizontal, Trash2, ShieldCheck, User as UserIcon, Copy, Check } from "lucide-react";
@@ -33,6 +34,8 @@ function useUsers() {
 }
 
 export default function UsersSettingsPage() {
+  const t = useTranslations("settings");
+  const tc = useTranslations("common");
   const qc = useQueryClient();
   const { data: currentUser } = useCurrentUser();
   const { data: users = [], isLoading } = useUsers();
@@ -101,14 +104,14 @@ export default function UsersSettingsPage() {
     <div className="space-y-6 max-w-4xl">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Team Members</h2>
+          <h2 className="text-2xl font-bold">{t("teamTitle")}</h2>
           <p className="text-muted-foreground text-sm mt-1">
-            Manage who has access to Nexus ERP. Invite workers or admins via email.
+            {t("teamSubtitle")}
           </p>
         </div>
         <Button onClick={() => setInviteOpen(true)}>
-          <UserPlus className="h-4 w-4 mr-2" />
-          Invite User
+          <UserPlus className="h-4 w-4 me-2" />
+          {t("inviteUser")}
         </Button>
       </div>
 
@@ -117,11 +120,11 @@ export default function UsersSettingsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Joined</TableHead>
+                <TableHead>{t("name")}</TableHead>
+                <TableHead>{t("email")}</TableHead>
+                <TableHead>{t("role")}</TableHead>
+                <TableHead>{t("status")}</TableHead>
+                <TableHead>{t("joined")}</TableHead>
                 <TableHead className="w-12" />
               </TableRow>
             </TableHeader>
@@ -137,7 +140,7 @@ export default function UsersSettingsPage() {
               ) : users.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
-                    No team members yet. Invite someone to get started.
+                    {t("noTeamMembers")}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -151,7 +154,7 @@ export default function UsersSettingsPage() {
                             {user.firstName[0]}{user.lastName[0]}
                           </div>
                           {user.firstName} {user.lastName}
-                          {isSelf && <Badge variant="outline" className="text-xs">You</Badge>}
+                          {isSelf && <Badge variant="outline" className="text-xs">{t("you")}</Badge>}
                         </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground">{user.email}</TableCell>
@@ -188,16 +191,16 @@ export default function UsersSettingsPage() {
                                   })
                                 }
                               >
-                                <ShieldCheck className="h-4 w-4 mr-2" />
-                                Make {user.role === "admin" ? "Worker" : "Admin"}
+                                <ShieldCheck className="h-4 w-4 me-2" />
+                                {user.role === "admin" ? t("makeWorker") : t("makeAdmin")}
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 className="text-destructive"
                                 onClick={() => setDeleteId(user.id)}
                               >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete
+                                <Trash2 className="h-4 w-4 me-2" />
+                                {tc("delete")}
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -216,18 +219,18 @@ export default function UsersSettingsPage() {
       <Dialog open={inviteOpen} onOpenChange={(o) => { if (!o) handleInviteClose(); else setInviteOpen(true); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Invite a Team Member</DialogTitle>
+            <DialogTitle>{t("inviteTitle")}</DialogTitle>
           </DialogHeader>
 
           {inviteResult ? (
             <div className="space-y-4">
               {inviteResult.emailSent ? (
                 <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg p-3">
-                  ✓ Invitation email sent successfully.
+                  {t("invitationSent")}
                 </p>
               ) : (
                 <p className="text-sm text-orange-700 bg-orange-50 border border-orange-200 rounded-lg p-3">
-                  Email could not be sent. Share this link manually:
+                  {t("emailFailed")}
                 </p>
               )}
               <div className="flex items-center gap-2">
@@ -236,19 +239,19 @@ export default function UsersSettingsPage() {
                   {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">This link expires in 72 hours.</p>
+              <p className="text-xs text-muted-foreground">{t("linkExpires")}</p>
               <DialogFooter>
-                <Button onClick={handleInviteClose}>Done</Button>
+                <Button onClick={handleInviteClose}>{t("done")}</Button>
               </DialogFooter>
             </div>
           ) : (
             <form onSubmit={handleInviteSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="invite-email">Email address</Label>
+                <Label htmlFor="invite-email">{t("inviteEmailLabel")}</Label>
                 <Input
                   id="invite-email"
                   type="email"
-                  placeholder="colleague@example.com"
+                  placeholder={t("inviteEmailPlaceholder")}
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
                   required
@@ -256,7 +259,7 @@ export default function UsersSettingsPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Role</Label>
+                <Label>{t("role")}</Label>
                 <Select value={inviteRole} onValueChange={(v) => setInviteRole(v as "admin" | "worker")}>
                   <SelectTrigger>
                     <SelectValue />
@@ -266,8 +269,8 @@ export default function UsersSettingsPage() {
                       <div className="flex items-center gap-2">
                         <UserIcon className="h-4 w-4" />
                         <div>
-                          <p className="font-medium">Worker</p>
-                          <p className="text-xs text-muted-foreground">Can view and create orders, bills, and products</p>
+                          <p className="font-medium">{t("worker")}</p>
+                          <p className="text-xs text-muted-foreground">{t("workerDesc")}</p>
                         </div>
                       </div>
                     </SelectItem>
@@ -275,8 +278,8 @@ export default function UsersSettingsPage() {
                       <div className="flex items-center gap-2">
                         <ShieldCheck className="h-4 w-4" />
                         <div>
-                          <p className="font-medium">Admin</p>
-                          <p className="text-xs text-muted-foreground">Full access including user management and deletions</p>
+                          <p className="font-medium">{t("admin")}</p>
+                          <p className="text-xs text-muted-foreground">{t("adminDesc")}</p>
                         </div>
                       </div>
                     </SelectItem>
@@ -284,9 +287,9 @@ export default function UsersSettingsPage() {
                 </Select>
               </div>
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={handleInviteClose}>Cancel</Button>
+                <Button type="button" variant="outline" onClick={handleInviteClose}>{t("cancel")}</Button>
                 <Button type="submit" disabled={inviteMutation.isPending}>
-                  {inviteMutation.isPending ? "Sending..." : "Send Invitation"}
+                  {inviteMutation.isPending ? t("sending") : t("sendInvitation")}
                 </Button>
               </DialogFooter>
             </form>
@@ -298,18 +301,18 @@ export default function UsersSettingsPage() {
       <AlertDialog open={!!deleteId} onOpenChange={(o) => { if (!o) setDeleteId(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this user?</AlertDialogTitle>
+            <AlertDialogTitle>{t("deleteUserTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently remove the user from Nexus ERP. Their orders and bills will remain.
+              {t("deleteUserDesc")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => deleteId && deleteMutation.mutate(deleteId)}
             >
-              Delete
+              {tc("delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

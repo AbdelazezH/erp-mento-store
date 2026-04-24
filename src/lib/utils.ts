@@ -5,25 +5,25 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatCurrency(amount: number | string | null | undefined): string {
+export function formatCurrency(amount: number | string | null | undefined, locale = "en-US"): string {
   const num = typeof amount === "string" ? parseFloat(amount) : (amount ?? 0);
   if (isNaN(num)) return "EGP 0.00";
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat(locale, {
     style: "currency",
     currency: "EGP",
     minimumFractionDigits: 2,
   }).format(num);
 }
 
-export function formatNumber(n: number | string | null | undefined): string {
+export function formatNumber(n: number | string | null | undefined, locale = "en-US"): string {
   const num = typeof n === "string" ? parseFloat(n) : (n ?? 0);
   if (isNaN(num)) return "0";
-  return new Intl.NumberFormat("en-US").format(num);
+  return new Intl.NumberFormat(locale).format(num);
 }
 
-export function formatDate(date: Date | string | null | undefined): string {
+export function formatDate(date: Date | string | null | undefined, locale = "en-US"): string {
   if (!date) return "—";
-  return new Intl.DateTimeFormat("en-US", {
+  return new Intl.DateTimeFormat(locale, {
     year: "numeric",
     month: "short",
     day: "numeric",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -26,11 +27,7 @@ const profileSchema = z.object({
 
 type ProfileForm = z.infer<typeof profileSchema>;
 
-const categoryLabels: Record<string, string> = {
-  packaging: "Packaging",
-  handling: "Handling",
-  transaction_fee: "Txn Fee",
-};
+// categoryLabels is defined inside component for i18n
 
 const categoryVariant: Record<string, "default" | "secondary" | "outline"> = {
   packaging: "secondary",
@@ -38,13 +35,24 @@ const categoryVariant: Record<string, "default" | "secondary" | "outline"> = {
   transaction_fee: "default",
 };
 
-const ruleLabels: Record<string, string> = {
-  per_order: "Per Order",
-  per_item: "Per Item",
-  manual: "Manual",
-};
+// ruleLabels is defined inside component for i18n
 
 export default function CostProfilesPage() {
+  const t = useTranslations("settings");
+  const tc = useTranslations("common");
+
+  const categoryLabels: Record<string, string> = {
+    packaging: t("packaging"),
+    handling: t("handling"),
+    transaction_fee: t("txnFee"),
+  };
+
+  const ruleLabels: Record<string, string> = {
+    per_order: t("perOrder"),
+    per_item: t("perItem"),
+    manual: t("manual"),
+  };
+
   const { data: profiles = [], isLoading } = useCostProfiles();
   const createMutation = useCreateCostProfile();
   const updateMutation = useUpdateCostProfile();
@@ -92,14 +100,14 @@ export default function CostProfilesPage() {
     <div className="space-y-6 max-w-4xl">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Cost Profiles</h2>
+          <h2 className="text-2xl font-bold">{t("costProfilesTitle")}</h2>
           <p className="text-muted-foreground text-sm mt-1">
-            Manage operational costs like packaging, handling, and transaction fees.
+            {t("costProfilesSubtitle")}
           </p>
         </div>
         <Button onClick={openCreate}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Cost
+          <Plus className="h-4 w-4 me-2" />
+          {t("addCost")}
         </Button>
       </div>
 
@@ -108,11 +116,11 @@ export default function CostProfilesPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Unit Cost</TableHead>
-                <TableHead>Application Rule</TableHead>
-                <TableHead>Active</TableHead>
+                <TableHead>{t("name2")}</TableHead>
+                <TableHead>{tc("category")}</TableHead>
+                <TableHead>{t("unitCostEgp")}</TableHead>
+                <TableHead>{t("applicationRule")}</TableHead>
+                <TableHead>{t("active")}</TableHead>
                 <TableHead className="w-20" />
               </TableRow>
             </TableHeader>
@@ -128,7 +136,7 @@ export default function CostProfilesPage() {
               ) : profiles.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
-                    No cost profiles yet. Add one to get started.
+                    {t("noCostProfiles")}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -171,53 +179,53 @@ export default function CostProfilesPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{editingId ? "Edit Cost Profile" : "Add Cost Profile"}</DialogTitle>
+            <DialogTitle>{editingId ? t("editCostProfile") : t("addCostProfile")}</DialogTitle>
           </DialogHeader>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
+              <Label htmlFor="name">{t("name2")}</Label>
               <Input id="name" {...form.register("name")} placeholder="e.g. Standard Eco-Box" />
               {form.formState.errors.name && (
                 <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>
               )}
             </div>
             <div className="space-y-2">
-              <Label>Category</Label>
+              <Label>{tc("category")}</Label>
               <Select value={form.watch("category")} onValueChange={(v) => form.setValue("category", v as ProfileForm["category"])}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="packaging">Packaging</SelectItem>
-                  <SelectItem value="handling">Handling</SelectItem>
-                  <SelectItem value="transaction_fee">Transaction Fee</SelectItem>
+                  <SelectItem value="packaging">{t("packaging")}</SelectItem>
+                  <SelectItem value="handling">{t("handling")}</SelectItem>
+                  <SelectItem value="transaction_fee">{t("transactionFee")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="unitCost">Unit Cost (EGP)</Label>
+              <Label htmlFor="unitCost">{t("unitCostEgp")}</Label>
               <Input id="unitCost" type="number" step="0.01" {...form.register("unitCost")} placeholder="0.00" />
               {form.formState.errors.unitCost && (
                 <p className="text-xs text-destructive">{form.formState.errors.unitCost.message}</p>
               )}
             </div>
             <div className="space-y-2">
-              <Label>Application Rule</Label>
+              <Label>{t("applicationRule")}</Label>
               <Select value={form.watch("applicationRule")} onValueChange={(v) => form.setValue("applicationRule", v as ProfileForm["applicationRule"])}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="per_order">Per Order</SelectItem>
-                  <SelectItem value="per_item">Per Item</SelectItem>
-                  <SelectItem value="manual">Manual</SelectItem>
+                  <SelectItem value="per_order">{t("perOrder")}</SelectItem>
+                  <SelectItem value="per_item">{t("perItem")}</SelectItem>
+                  <SelectItem value="manual">{t("manual")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{t("cancel")}</Button>
               <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
-                {createMutation.isPending || updateMutation.isPending ? "Saving..." : editingId ? "Update" : "Create"}
+                {createMutation.isPending || updateMutation.isPending ? t("saving") : editingId ? t("update") : t("create")}
               </Button>
             </DialogFooter>
           </form>
@@ -228,18 +236,18 @@ export default function CostProfilesPage() {
       <AlertDialog open={!!deleteId} onOpenChange={(o) => { if (!o) setDeleteId(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this cost profile?</AlertDialogTitle>
+            <AlertDialogTitle>{t("deleteCostProfileTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently remove the cost profile. This action cannot be undone.
+              {t("deleteCostProfileDesc")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => deleteId && deleteMutation.mutate(deleteId, { onSuccess: () => setDeleteId(null) })}
             >
-              Delete
+              {tc("delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

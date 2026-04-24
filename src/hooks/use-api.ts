@@ -233,6 +233,15 @@ export function useDeleteProduct() {
   });
 }
 
+export function useDuplicateProduct() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => post<any>(`/api/products/${id}/duplicate`, {}),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); toast.success("Product duplicated"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
 export function useMaterials() {
   return useQuery({ queryKey: ["materials"], queryFn: () => apiFetch<string[]>("/api/products/materials") });
 }

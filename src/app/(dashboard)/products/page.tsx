@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import {
   useInfiniteProducts,
   useDeleteProduct,
+  useDuplicateProduct,
   useCategories,
   useSuppliers,
   useCreateCategory,
@@ -61,21 +63,23 @@ import {
   Package,
   Filter,
   Download,
+  Copy,
 } from "lucide-react";
 
 // ─── Stock Badge ─────────────────────────────────────────────────────────────
 
 function StockBadge({ qty }: { qty: number }) {
+  const t = useTranslations("products");
   if (qty === 0)
     return (
       <Badge variant="destructive" className="tabular-nums">
-        Out of stock
+        {t("outOfStock")}
       </Badge>
     );
   if (qty < 10)
     return (
       <Badge variant="warning" className="tabular-nums">
-        {qty} low
+        {t("low", { qty })}
       </Badge>
     );
   return (
@@ -129,6 +133,8 @@ function NewCategoryDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
+  const t = useTranslations("products");
+  const tc = useTranslations("common");
   const [name, setName] = useState("");
   const createCategory = useCreateCategory();
 
@@ -143,10 +149,10 @@ function NewCategoryDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-xs">
         <DialogHeader>
-          <DialogTitle>New Category</DialogTitle>
+          <DialogTitle>{t("newCategoryTitle")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-2 py-2">
-          <Label>Name</Label>
+          <Label>{tc("name")}</Label>
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -157,10 +163,10 @@ function NewCategoryDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            {tc("cancel")}
           </Button>
           <Button onClick={handleCreate} disabled={!name.trim() || createCategory.isPending}>
-            Create
+            {t("createCategory")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -171,6 +177,8 @@ function NewCategoryDialog({
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function ProductsPage() {
+  const t = useTranslations("products");
+  const tc = useTranslations("common");
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -196,6 +204,7 @@ export default function ProductsPage() {
   const { data: categories = [] } = useCategories();
   const { data: suppliers = [] } = useSuppliers();
   const deleteProduct = useDeleteProduct();
+  const duplicateProduct = useDuplicateProduct();
 
   // Infinite scroll
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -221,9 +230,9 @@ export default function ProductsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Products</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t("title")}</h1>
           <p className="text-sm text-muted-foreground">
-            Manage your product catalog
+            {t("subtitle")}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -232,12 +241,12 @@ export default function ProductsPage() {
             onClick={() => downloadCSV(products as any[])}
             disabled={(products as any[]).length === 0}
           >
-            <Download className="mr-2 h-4 w-4" />
-            Export CSV
+            <Download className="me-2 h-4 w-4" />
+            {tc("exportCsv")}
           </Button>
           <Button onClick={() => router.push("/products/new")}>
-            <Plus className="mr-2 h-4 w-4" />
-            New Product
+            <Plus className="me-2 h-4 w-4" />
+            {t("newProduct")}
           </Button>
         </div>
       </div>
@@ -247,7 +256,7 @@ export default function ProductsPage() {
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search products…"
+            placeholder={t("searchPlaceholder")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
@@ -260,10 +269,10 @@ export default function ProductsPage() {
             onValueChange={(v) => setCategoryId(v === "__all__" ? "" : v)}
           >
             <SelectTrigger className="w-44">
-              <SelectValue placeholder="All categories" />
+              <SelectValue placeholder={t("allCategories")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__all__">All categories</SelectItem>
+              <SelectItem value="__all__">{t("allCategories")}</SelectItem>
               {(categories as any[]).map((c) => (
                 <SelectItem key={c.id} value={c.id}>
                   {c.name}
@@ -287,10 +296,10 @@ export default function ProductsPage() {
           onValueChange={(v) => setSupplierId(v === "__all__" ? "" : v)}
         >
           <SelectTrigger className="w-44">
-            <SelectValue placeholder="All suppliers" />
+            <SelectValue placeholder={t("allSuppliers")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="__all__">All suppliers</SelectItem>
+            <SelectItem value="__all__">{t("allSuppliers")}</SelectItem>
             {(suppliers as any[]).map((s) => (
               <SelectItem key={s.id} value={s.id}>
                 {s.name}
@@ -309,7 +318,7 @@ export default function ProductsPage() {
           }`}
         >
           <Filter className="h-3.5 w-3.5" />
-          Low stock
+          {t("lowStock")}
         </button>
       </div>
 
@@ -335,16 +344,16 @@ export default function ProductsPage() {
       ) : (products as any[]).length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-20 text-center">
           <Package className="mb-4 h-12 w-12 text-muted-foreground/40" />
-          <h3 className="text-lg font-semibold">No products found</h3>
+          <h3 className="text-lg font-semibold">{t("noProductsFound")}</h3>
           <p className="mt-1 text-sm text-muted-foreground">
             {search || categoryId || supplierId || lowStock
-              ? "Try adjusting your filters."
-              : "Get started by creating your first product."}
+              ? tc("adjustFilters")
+              : t("getStartedFirst")}
           </p>
           {!search && !categoryId && !supplierId && !lowStock && (
             <Button className="mt-4" onClick={() => router.push("/products/new")}>
-              <Plus className="mr-2 h-4 w-4" />
-              New Product
+              <Plus className="me-2 h-4 w-4" />
+              {t("newProduct")}
             </Button>
           )}
         </div>
@@ -355,15 +364,15 @@ export default function ProductsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-12"></TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>SKU</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Supplier</TableHead>
-                <TableHead>Stock</TableHead>
-                <TableHead>Selling Price</TableHead>
-                <TableHead>Base Cost</TableHead>
-                <TableHead>Profit &amp; Margin</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>{tc("name")}</TableHead>
+                <TableHead>{t("sku")}</TableHead>
+                <TableHead>{t("category")}</TableHead>
+                <TableHead>{t("supplier")}</TableHead>
+                <TableHead>{t("stock")}</TableHead>
+                <TableHead>{t("sellingPrice")}</TableHead>
+                <TableHead>{t("baseCost")}</TableHead>
+                <TableHead>{t("profitMargin")}</TableHead>
+                <TableHead>{tc("status")}</TableHead>
                 <TableHead className="w-12"></TableHead>
               </TableRow>
             </TableHeader>
@@ -464,9 +473,9 @@ export default function ProductsPage() {
                   {/* Published */}
                   <TableCell>
                     {product.isPublished ? (
-                      <Badge variant="success">Published</Badge>
+                      <Badge variant="success">{tc("published")}</Badge>
                     ) : (
-                      <Badge variant="secondary">Draft</Badge>
+                      <Badge variant="secondary">{tc("draft")}</Badge>
                     )}
                   </TableCell>
 
@@ -483,15 +492,22 @@ export default function ProductsPage() {
                         <DropdownMenuItem
                           onClick={() => router.push(`/products/${product.id}`)}
                         >
-                          <Pencil className="mr-2 h-4 w-4" />
-                          Edit
+                          <Pencil className="me-2 h-4 w-4" />
+                          {tc("edit")}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          disabled={duplicateProduct.isPending}
+                          onClick={() => duplicateProduct.mutate(product.id)}
+                        >
+                          <Copy className="me-2 h-4 w-4" />
+                          {tc("duplicate")}
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           className="text-destructive focus:text-destructive"
                           onClick={() => setDeleteId(product.id)}
                         >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
+                          <Trash2 className="me-2 h-4 w-4" />
+                          {tc("delete")}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -527,19 +543,18 @@ export default function ProductsPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Product</AlertDialogTitle>
+            <AlertDialogTitle>{t("deleteProductTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the product. This action cannot be
-              undone.
+              {t("deleteProductDesc")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{tc("cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={handleDelete}
             >
-              Delete
+              {tc("delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
